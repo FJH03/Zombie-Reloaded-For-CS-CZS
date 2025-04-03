@@ -1,0 +1,23 @@
+﻿"Phrases"
+{
+	"zombie_smoke"
+	{
+		"en"		"zombie_smoke"
+	}
+	"you bought zombie_smoke"
+	{
+		"en"		"you bought zombie_smoke"
+	}
+	"you must be alive"
+	{
+		"en"		"you must be alive"
+	}
+	"only zombie can use this"
+	{
+		"en"		"only zombie can use this"
+	}
+	"the smoke has been released"
+	{
+		"en"		"the smoke has been released"
+	}
+}

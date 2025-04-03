@@ -1,0 +1,15 @@
+"VertexLitGeneric"
+{
+// 베이스 텍스쳐 (알비도) 그리고 노말맵
+	"$baseTexture" "models\player\zx_f\tr_viper/tr_viper_hair"	
+	"$bumpmap" "models\player\zx_f\tr_viper/tr_viper_hair_normal"
+ 
+	 $nocull 1
+	 $alphatest 1
+ 
+
+
+
+//=================림라이트(스폿라이트와 상관없이 지속적으로 표시되는 림라이트)==============
+ 
+}

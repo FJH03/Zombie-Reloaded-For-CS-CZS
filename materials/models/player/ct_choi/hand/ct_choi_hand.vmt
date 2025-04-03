@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+	$basetexture		"models/player/ct_choi/ct_choi_hand"
+	$bumpmap			"models/player/ct_choi/ct_choi_hand_normal"
+
+	$phong "1"
+	$phongboost "16"
+	$phongexponent "4"
+	$phongfresnelranges "[0.04 0.10 1.0]"
+}

@@ -1,0 +1,34 @@
+"VertexLitGeneric"
+{
+	"$baseTexture" "models\player\tr_yuri/tr_yuri_hair"	
+	"$bumpmap" "models\player\tr_yuri/tr_yuri_hair_normal"
+	"$envmap"		"env_cubemap"
+	"$envmaptint"		"[ 0.300000 0.300000 0.300000 ]"
+	"$envmapcontrast"	0.50000
+	"$envmapsaturation"	0.500000
+	"$envmapboost"		0.25000
+
+	"$phong"		0            
+	"$phongboost"		3.0000       
+	"$phongexponent"	8.000000     
+	"$phongFresnelboost"	1.000000     
+	"$phongFresnelexponent"	3.000000     
+	"$phongtint"   "[1 1 1]"	     
+
+	"$bumpscale"		1.000000
+
+	"$rimlight"		1          
+	"$rimlightexponent"	4.000000  
+	"$rimlightboost"	10.000000
+	"$rimlightcolorblend"	1.0
+	"$rimmask"	0
+
+        "$normalmapalphaenvmapmask" 1       
+         $UseModelLight   1
+
+
+	 //$translucent  1
+	 $nocull 1
+	 $alphatest 1
+	 $ALPHATESTREFERENCE	0.1
+}

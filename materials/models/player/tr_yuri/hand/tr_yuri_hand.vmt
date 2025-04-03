@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+	$basetexture		"models/player/tr_yuri/tr_yuri_hand"
+	$bumpmap			"models/player/tr_yuri/tr_yuri_hand_normal"
+
+	$phong "1"
+	$phongboost "16"
+	$phongexponent "8"
+	$phongfresnelranges "[0.04 0.1 1.0]"
+}

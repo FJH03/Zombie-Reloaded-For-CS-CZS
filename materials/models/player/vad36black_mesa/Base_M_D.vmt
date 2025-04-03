@@ -1,0 +1,5 @@
+"VertexLitGeneric"
+{
+	"$baseTexture" "models\player\vad36black_mesa/base_m_d"
+	"$bumpmap" "models\player\vad36black_mesa/base_m_n"
+}

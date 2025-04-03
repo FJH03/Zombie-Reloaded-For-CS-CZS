@@ -1,0 +1,7 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/player/custom_player/2b/a"
+             "$bumpmap" "models/player/custom_player/2b/ax"
+	 $nocull 1
+                "$rimmask" "1"
+}

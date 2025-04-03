@@ -1,0 +1,5 @@
+"UnlitGeneric"
+{
+	"$baseTexture" "Overlays/kill/kill"
+	"$additive" "1"
+}

@@ -1,0 +1,27 @@
+﻿"Phrases"
+{
+	"human_c4"
+	{
+		"en"		"human_c4"
+	}
+	"you bought human_c4"
+	{
+		"en"		"you bought human_c4"
+	}
+	"you must be alive"
+	{
+		"en"		"you must be alive"
+	}
+	"you must be plant c4 on ground"
+	{
+		"en"		"you must be plant c4 on ground"
+	}
+	"wait another c4 explode"
+	{
+		"en"		"wait another c4 explode"
+	}
+	"the bomb has been planted"
+	{
+		"en"		"the bomb has been planted"
+	}
+}

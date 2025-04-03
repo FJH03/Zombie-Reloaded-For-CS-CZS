@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+	$basetexture		"models/player/tr_viper/tr_viper_hand"
+	$bumpmap			"models/player/tr_viper/tr_viper_hand_normal"
+
+	$phong "1"
+	$phongboost "16"
+	$phongexponent "4"
+	$phongfresnelranges "[0.06 0.10 1.0]"
+}
