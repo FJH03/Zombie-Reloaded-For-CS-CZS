@@ -1,10 +1,39 @@
 #include <sourcemod>
 
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.2"
 
 bool g_bLateLoad;
 StringMap g_smArmsModels;
 Handle g_hApplyTimer[MAXPLAYERS + 1];
+
+void CancelApplyTimer(int client)
+{
+    if (client < 1 || client > MaxClients)
+        return;
+
+    Handle timer = g_hApplyTimer[client];
+    g_hApplyTimer[client] = null;
+
+    if (timer != null && IsValidHandle(timer))
+    {
+        KillTimer(timer);
+    }
+}
+
+void ClearApplyTimerSlotByHandle(Handle timer)
+{
+    if (timer == null)
+        return;
+
+    for (int i = 1; i <= MaxClients; i++)
+    {
+        if (g_hApplyTimer[i] == timer)
+        {
+            g_hApplyTimer[i] = null;
+            return;
+        }
+    }
+}
 
 public Plugin myinfo = 
 {
@@ -57,25 +86,15 @@ public void OnPluginStart()
 
 public void OnClientDisconnect(int client)
 {
-    if (client >= 1 && client <= MaxClients && g_hApplyTimer[client] != null)
-    {
-        KillTimer(g_hApplyTimer[client]);
-        g_hApplyTimer[client] = null;
-    }
+    CancelApplyTimer(client);
 }
 
 void ScheduleApplyArmsModel(int client, float delay)
 {
-    if (client < 1 || client > MaxClients)
-        return;
-    if (!IsClientInGame(client))
+    if (!IsClient(client))
         return;
 
-    if (g_hApplyTimer[client] != null)
-    {
-        KillTimer(g_hApplyTimer[client]);
-        g_hApplyTimer[client] = null;
-    }
+    CancelApplyTimer(client);
 
     g_hApplyTimer[client] = CreateTimer(delay, Timer_ApplyArmsModel, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
@@ -132,7 +151,7 @@ void LoadArmsModelsConfig()
 public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (client && IsClientInGame(client))
+    if (IsClient(client))
     {
 		ScheduleApplyArmsModel(client, 1.0);
     }
@@ -141,7 +160,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (client && IsClientInGame(client))
+    if (IsClient(client))
     {
 		ScheduleApplyArmsModel(client, 3.0);
     }
@@ -150,7 +169,7 @@ public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (client && IsClientInGame(client))
+    if (IsClient(client))
     {
         SetEntPropString(client, Prop_Send, "m_szArmsModel", "");
     }
@@ -159,7 +178,7 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (client && IsClientInGame(client))
+    if (IsClient(client))
     {
 		ScheduleApplyArmsModel(client, 1.0);
     }
@@ -167,12 +186,10 @@ public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 
 public Action Timer_ApplyArmsModel(Handle timer, any userid)
 {
+    ClearApplyTimerSlotByHandle(timer);
+
     int client = GetClientOfUserId(userid);
-	if (client >= 1 && client <= MaxClients && g_hApplyTimer[client] == timer)
-	{
-		g_hApplyTimer[client] = null;
-	}
-    if (!client || !IsClientInGame(client))
+    if (!IsClient(client))
     {
         return Plugin_Continue;
     }
@@ -199,4 +216,10 @@ public Action Timer_ApplyArmsModel(Handle timer, any userid)
     // 设置手臂模型属性
     SetEntPropString(client, Prop_Send, "m_szArmsModel", armsModel);
     return Plugin_Continue;
+}
+
+//检测玩家属性函数
+bool IsClient(int client)
+{
+    return client <= MaxClients && IsClientConnected(client) && IsClientInGame(client);
 }
