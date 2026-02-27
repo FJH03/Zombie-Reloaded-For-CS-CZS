@@ -896,6 +896,50 @@
         "jump_distance"         "1.0"
     }
 
+    "youxiang"
+    {
+        // General
+        "enabled"               "yes"
+        "team"                  "1"
+        "team_default"          "no"
+        "flags"                 "0"
+        "group"                 ""
+        
+        "name"                  "优香"
+        "description"           "碧蓝档案"
+        
+        // Model
+        "model_path"            "models/player/youxiang.mdl"
+        "alpha_initial"         "255"
+        "alpha_damaged"         "255"
+        "alpha_damage"          "0"
+        
+        // Hud
+        "overlay_path"          ""
+        "nvgs"                  "no"
+        "fov"                   "90"
+        
+        // Effects
+        "has_napalm"            "yes"
+        "napalm_time"           "0.0"
+        
+        // Player behaviour
+        "immunity_mode"         "none"
+        "immunity_amount"       "0.0"
+        "no_fall_damage"        "no"
+        
+        "health"                "100"
+        "health_regen_interval" "0.0"
+        "health_regen_amount"   "0"
+        "health_infect_gain"    "0"
+        "kill_bonus"            "5"
+        
+        "speed"                 "300"
+        "knockback"             "0"
+        "jump_height"           "1.0"
+        "jump_distance"         "1.0"
+    }
+
     "ct_2b"
     {
         // General

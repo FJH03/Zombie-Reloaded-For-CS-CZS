@@ -12,7 +12,7 @@ public Plugin:myinfo = {
 	name = "[ZR] Sound Complement",
 	author = "[CNSR] FJH_03",
 	description = "<- Description ->",
-	version = "1.5",
+	version = "1.51",
 	url = "<- URL ->"
 }
 
@@ -181,6 +181,7 @@ public Action:GetPlayerSex(Handle timer)
 			GetClientModel(i, ModelStr, sizeof(ModelStr));
 			if( StrEqual(ModelStr, "models/player/ct_czy.mdl") ||
 				StrEqual(ModelStr, "models/player/ct_2b.mdl") ||
+				StrEqual(ModelStr, "models/player/youxiang.mdl") ||
 				StrEqual(ModelStr, "models/player/t_viper.mdl") ||
 				StrEqual(ModelStr, "models/player/miku_classic.mdl") ||
 				StrEqual(ModelStr, "models/player/t_an.mdl") )

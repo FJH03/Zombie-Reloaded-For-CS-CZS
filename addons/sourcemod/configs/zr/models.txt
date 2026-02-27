@@ -80,6 +80,15 @@
         "group"     ""
     }
 
+    "youxiang"
+    {
+        "name"      "youxiang"
+        "path"      "models/player/"
+        "team"      "humans"
+        "access"    "public"
+        "group"     ""
+    }
+
     "ct_2b"
     {
         "name"      "ct_2b"
