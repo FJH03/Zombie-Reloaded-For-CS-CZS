@@ -10,7 +10,7 @@ public Plugin myinfo =
 	name = "[ZR] FixPlayerTeam",
 	author = "[CNSR] FJH_03",
 	description = "用于CZ-ZR模式的修正团队与角色插件",
-	version = "4.0",
+	version = "4.1",
 	url = "<-url->"
 };
 
@@ -80,6 +80,7 @@ public Action:solveBotSelect(Handle timer, int client) {
 		
 		if (StrEqual(ModelStr, "models/player/ct_czy.mdl") ||
 			StrEqual(ModelStr, "models/player/ct_2b.mdl") ||
+			StrEqual(ModelStr, "models/player/youxiang.mdl") ||
 			StrEqual(ModelStr, "models/player/hecu.mdl")) {
 			if (GetClientTeam(client) == CS_TEAM_T) {
 				CreateTimer(0.2, SetPlayerModel_CT, client);
