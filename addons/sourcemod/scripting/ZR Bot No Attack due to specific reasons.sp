@@ -9,8 +9,8 @@ public Plugin myinfo =
 {
 	name = "[ZR] Bot No Attack due to specific reasons",
 	author = "[CNSR] FJH_03",
-	description = "当回合开始没有出现僵尸时，有概率禁止Bot的射击行为，且会随情况恢复",
-	version = "1.5",
+	description = "当回合开始没有出现僵尸时，禁止Bot的射击行为，且会随情况恢复",
+	version = "1.6",
 	url = "<- URL ->"
 }
 
@@ -25,14 +25,8 @@ bool g_botsNoAttackEnabled;
 
 public void RoundStart(Handle hEvent, char[] chEvent, bool bDontBroadcast)
 {
-	new randomNum = GetRandomInt(1, 10);
-	if (randomNum > 3) {
-		g_botsNoAttackEnabled = true; // 启用禁止攻击
-		PrintToChatAll("\x01\x03[\x04阻止Bot射击\x03]\x01 本局阻止了Bot的开火行为！")
-	} else {
-		g_botsNoAttackEnabled = false;
-		PrintToChatAll("\x01\x03[\x04允许Bot射击\x03]\x01 本局不阻止Bot的开火行为！")
-	}
+	g_botsNoAttackEnabled = true; // 启用禁止攻击
+	PrintToChatAll("\x01\x03[\x04阻止Bot射击\x03]\x01 已阻止Bot开火行为！");
 }
 
 public Action openFire(Event event, const char[] name, bool silent)
