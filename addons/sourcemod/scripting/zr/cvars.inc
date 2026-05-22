@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Config creation and cvar control.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -71,6 +71,7 @@ enum CvarsList
     Handle:CVAR_CLASSES_HUMAN_SELECT,
     Handle:CVAR_CLASSES_ADMIN_SELECT,
     Handle:CVAR_CLASSES_SPEED_METHOD,
+    Handle:CVAR_CLASSES_CSGO_KNOCKBACK_BOOST,
     Handle:CVAR_WEAPONS,
     Handle:CVAR_WEAPONS_RESTRICT,
     Handle:CVAR_WEAPONS_RESTRICT_ENDEQUIP,
@@ -100,7 +101,10 @@ enum CvarsList
     Handle:CVAR_INFECT_SPAWNTIME_MAX,
     Handle:CVAR_INFECT_CONSECUTIVE_BLOCK,
     Handle:CVAR_INFECT_WEAPONS_DROP,
+    Handle:CVAR_INFECT_MZOMBIE_MODE,
     Handle:CVAR_INFECT_MZOMBIE_RATIO,
+    Handle:CVAR_INFECT_MZOMBIE_MIN,
+    Handle:CVAR_INFECT_MZOMBIE_MAX,
     Handle:CVAR_INFECT_MZOMBIE_COUNTDOWN,
     Handle:CVAR_INFECT_MZOMBIE_RESPAWN,
     Handle:CVAR_INFECT_EXPLOSION,
@@ -169,15 +173,6 @@ enum CvarsList
     Handle:CVAR_ZSPAWN_TIMELIMIT,
     Handle:CVAR_ZSPAWN_TIMELIMIT_TIME,
     Handle:CVAR_ZSPAWN_TIMELIMIT_ZOMBIE,
-    Handle:CVAR_ZTELE_ZOMBIE,
-    Handle:CVAR_ZTELE_HUMAN_BEFORE,
-    Handle:CVAR_ZTELE_HUMAN_AFTER,
-    Handle:CVAR_ZTELE_DELAY_ZOMBIE,
-    Handle:CVAR_ZTELE_DELAY_HUMAN,
-    Handle:CVAR_ZTELE_MAX_ZOMBIE,
-    Handle:CVAR_ZTELE_MAX_HUMAN,
-    Handle:CVAR_ZTELE_AUTOCANCEL,
-    Handle:CVAR_ZTELE_AUTOCANCEL_DISTANCE,
     Handle:CVAR_ZHP,
     Handle:CVAR_ZHP_DEFAULT,
 }
@@ -278,6 +273,7 @@ CvarsCreate()
     g_hCvarsList[CVAR_CLASSES_HUMAN_SELECT]             =    CreateConVar("zr_classes_human_select",            "1",            "Allow players to select human classes.");
     g_hCvarsList[CVAR_CLASSES_ADMIN_SELECT]             =    CreateConVar("zr_classes_admin_select",            "1",            "Allow admins to select admin mode classes. (Not to be confused by admin-only classes!)");
     g_hCvarsList[CVAR_CLASSES_SPEED_METHOD]             =    CreateConVar("zr_classes_speed_method",            "prop",         "Speed method to use when applying player speed. Do not touch this if you don't know what you're doing! [\"lmv\" = Lagged movement value | \"prop\" = Player speed property");
+    g_hCvarsList[CVAR_CLASSES_CSGO_KNOCKBACK_BOOST]     =    CreateConVar("zr_classes_csgo_knockback_boost",    "1",            "CS: GO only: Applies an upwards boost if necessary as a workaround for low knock back when standing on the ground. Side effects: Weaker and flying zombies (compensate with lower knock back).");
     
     // Menu
     g_hCvarsList[CVAR_CLASSES_MENU_AUTOCLOSE]           =    CreateConVar("zr_classes_menu_autoclose",      "1",            "Automatically close class selection menu after selecting a class.");
@@ -317,7 +313,10 @@ CvarsCreate()
     // ===========================
     
     // General
-    g_hCvarsList[CVAR_INFECT_MZOMBIE_RATIO]             =    CreateConVar("zr_infect_mzombie_ratio",        "5",                                "Number of mother zombies to infect (when infect timer is up) in proportion to number of humans on the server.");
+    g_hCvarsList[CVAR_INFECT_MZOMBIE_MODE]              =    CreateConVar("zr_infect_mzombie_mode",         "dynamic",                          "Mother zombie infection mode. ['dynamic' = every n-th zombie (ratio) | 'absolute' = n zombies (ratio) | 'range' = min/max]");
+    g_hCvarsList[CVAR_INFECT_MZOMBIE_RATIO]             =    CreateConVar("zr_infect_mzombie_ratio",        "7",                                "Dynamic mode: Infection ratio. Every n-th player is infected. | Absolute mode: Number of zombies to infect (positive ratio), or number of humans to keep (negative ratio).");
+    g_hCvarsList[CVAR_INFECT_MZOMBIE_MIN]               =    CreateConVar("zr_infect_mzombie_min",          "1",                                "Minimum number of mother zombies. Range mode only, cannot be zero.");
+    g_hCvarsList[CVAR_INFECT_MZOMBIE_MAX]               =    CreateConVar("zr_infect_mzombie_max",          "3",                                "Maximum number of mother zombies. Range mode only, cannot be zero.");
     g_hCvarsList[CVAR_INFECT_MZOMBIE_COUNTDOWN]         =    CreateConVar("zr_infect_mzombie_countdown",    "0",                                "Counts down to the first infection of the round.  Countdown is printed in the middle of the client's screen.");
     g_hCvarsList[CVAR_INFECT_MZOMBIE_RESPAWN]           =    CreateConVar("zr_infect_mzombie_respawn",      "0",                                "Teleport mother zombies back to spawn on infect.");
     g_hCvarsList[CVAR_INFECT_SPAWNTIME_MIN]             =    CreateConVar("zr_infect_spawntime_min",        "30.0",                             "Minimum time from the start of the round until picking the mother zombie(s).");
@@ -455,7 +454,7 @@ CvarsCreate()
     g_hCvarsList[CVAR_RESPAWN]                          =    CreateConVar("zr_respawn",                     "0",    "Respawn players after death. [Recommended: (Enable) zr_zspawn*]");
     g_hCvarsList[CVAR_RESPAWN_DELAY]                    =    CreateConVar("zr_respawn_delay",               "1",    "Time after death to delay player respawn. [Dependency: zr_respawn]");
     g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE]              =    CreateConVar("zr_respawn_team_zombie",         "1",    "Respawn player as a zombie. [Dependency: zr_respawn]");
-    g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE_WORLD]        =    CreateConVar("zr_respawn_team_zombie_world",   "1",    "Respawn player as a zombie if player was killed by the world. [Override: zr_respawn_team_zombie]");
+    g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE_WORLD]        =    CreateConVar("zr_respawn_team_zombie_world",   "1",    "Respawn player as a zombie if player was a zombie and killed by world damage. [Override: zr_respawn_team_zombie]");
     
     
     // ===========================
@@ -496,25 +495,12 @@ CvarsCreate()
     
     
     // ===========================
-    // ZTele (module)
-    // ===========================
-    g_hCvarsList[CVAR_ZTELE_ZOMBIE]                     =    CreateConVar("zr_ztele_zombie",                "1",    "Allow zombies to use ZTele.");
-    g_hCvarsList[CVAR_ZTELE_HUMAN_BEFORE]               =    CreateConVar("zr_ztele_human_before",          "1",    "Allow humans to use ZTele before the mother zombie has spawned.");
-    g_hCvarsList[CVAR_ZTELE_HUMAN_AFTER]                =    CreateConVar("zr_ztele_human_after",           "1",    "Allow humans to use ZTele after the mother zombie has spawned.");
-    g_hCvarsList[CVAR_ZTELE_DELAY_ZOMBIE]               =    CreateConVar("zr_ztele_delay_zombie",          "3.0",  "Time between using ZTele command and teleportation for zombies. [Dependency: zr_ztele_zombie]");
-    g_hCvarsList[CVAR_ZTELE_DELAY_HUMAN]                =    CreateConVar("zr_ztele_delay_human",           "3.0",  "Time between using ZTele command and teleportation for humans. [Dependency: zr_ztele_human_(before)/(after)]");
-    g_hCvarsList[CVAR_ZTELE_MAX_ZOMBIE]                 =    CreateConVar("zr_ztele_max_zombie",            "3",    "Max number of times a zombie is allowed to use ZTele per round. [Dependency: zr_ztele_zombie]");
-    g_hCvarsList[CVAR_ZTELE_MAX_HUMAN]                  =    CreateConVar("zr_ztele_max_human",             "1",    "Max number of times a human is allowed to use ZTele per round. [Dependency: zr_ztele_human_(before)/(after)]");
-    g_hCvarsList[CVAR_ZTELE_AUTOCANCEL]                 =    CreateConVar("zr_ztele_autocancel",            "1",    "Automatically cancel ZTele if player moves out of a set boundary. [Dependency: zr_ztele_(zombie)/(human)[_(before)/(after)]]");
-    g_hCvarsList[CVAR_ZTELE_AUTOCANCEL_DISTANCE]        =    CreateConVar("zr_ztele_autocancel_distance",   "20",   "Maximum distance, in feet, player is allowed to travel before teleport is cancelled. [Dependency: zr_ztele_autocancel]");
-    
-    
-    // ===========================
     // ZHP (module)
     // ===========================
     g_hCvarsList[CVAR_ZHP]                              =    CreateConVar("zr_zhp",             "1",    "Allow player to toggle real HP display as a zombie.");
     g_hCvarsList[CVAR_ZHP_DEFAULT]                      =    CreateConVar("zr_zhp_default",     "1",    "Default ZHP toggle state set on connecting player. [Dependency: zr_zhp]");
     
+    ZTele_OnCvarsCreate();
     
     // Auto-generate config file if it doesn't exist, then execute.
     AutoExecConfig(true, "zombiereloaded", "sourcemod/zombiereloaded");

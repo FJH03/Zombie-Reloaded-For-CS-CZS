@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Console command creation and hooking.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -42,10 +42,11 @@ CommandsInit()
     AntiStickOnCommandsCreate();
     ZCookiesOnCommandsCreate();
     ZSpawnOnCommandsCreate();
-    ZTeleOnCommandsCreate();
+    ZTele_OnCommandsCreate();
     ZHPOnCommandsCreate();
     VolOnCommandsCreate();
     ZombieSoundsOnCommandsCreate();
+    ImmunityOnCommandsCreate();
     
     #if defined ADD_VERSION_INFO
         VersionOnCommandsCreate();

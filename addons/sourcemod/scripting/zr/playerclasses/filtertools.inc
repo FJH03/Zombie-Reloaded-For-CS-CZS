@@ -7,7 +7,7 @@
  *  Type:          Core 
  *  Description:   Class system tools; validating, getting indexes or lists
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -103,8 +103,6 @@ stock bool:ClassValidateTeamDefaults(cachetype = ZR_CLASS_CACHE_ORIGINAL)
  */
 stock ClassValidateAttributes(classindex, bool:logErrors = false)
 {
-    // TODO: Validate immunity mode and amount.
-    
     new flags;
     
     // Team.
@@ -204,7 +202,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
             !StrEqual(model_path, "no_change", false))
         {
             // Check if the file exists.
-            if (!FileExists(model_path))
+            if (!FileExists(model_path, true))
             {
                 flags += ZR_CLASS_MODEL_PATH;
                 if (logErrors)
@@ -212,6 +210,17 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
                     LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Warning: Invalid model_path at index %d. File not found: \"%s\"", classindex, model_path);
                 }
             }
+        }
+    }
+    
+    // Model skin index.
+    new model_skin_index = ClassData[classindex][Class_ModelSkinIndex];
+    if (model_skin_index < ZR_CLASS_MODEL_SKIN_INDEX_MIN)
+    {
+        flags += ZR_CLASS_MODEL_SKIN_INDEX;
+        if (logErrors)
+        {
+            LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Warning: Invalid model_skin_index at index %d: %d", classindex, model_skin_index);
         }
     }
     
@@ -255,7 +264,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     {
         // Check if the file exists.
         Format(overlay, sizeof(overlay), "materials/%s.vmt", overlay_path);
-        if (!FileExists(overlay))
+        if (!FileExists(overlay, true))
         {
             flags += ZR_CLASS_OVERLAY_PATH;
             if (logErrors)
@@ -287,8 +296,38 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
         }
     }
     
-    // Immunity mode (not implemented).
+    // Immunity mode.
+    new ImmunityMode:immunityMode = ClassData[classindex][Class_ImmunityMode];
+    if (immunityMode == Immunity_Invalid)
+    {
+        flags += ZR_CLASS_IMMUNITY_MODE;
+        if (logErrors)
+        {
+            LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Warning: Invalid immunity_mode at index %d.", classindex);
+        }
+    }
     
+    // Immunity amount.
+    new immunityAmount = ClassData[classindex][Class_ImmunityAmount];
+    if (!ImmunityIsValidAmount(immunityMode, immunityAmount))
+    {
+        flags += ZR_CLASS_IMMUNITY_AMOUNT;
+        if (logErrors)
+        {
+            LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Warning: Invalid immunity_amount at index %d.", classindex);
+        }
+    }
+    
+    // Immunity cooldown.
+    new immunityCooldown = ClassData[classindex][Class_ImmunityCooldown];
+    if (!ImmunityIsValidCooldown(immunityMode, immunityCooldown))
+    {
+        flags += ZR_CLASS_IMMUNITY_COOLDOWN;
+        if (logErrors)
+        {
+            LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Warning: Invalid immunity_cooldown at index %d.", classindex);
+        }
+    }
     
     // Health.
     new health = ClassData[classindex][Class_Health];
@@ -418,6 +457,13 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
 {
     new flags;
     
+    // Model skin index.
+    new model_skin_index = attributes[ClassEdit_ModelSkinIndex];
+    if (model_skin_index < ZR_CLASS_MODEL_SKIN_INDEX_MIN)
+    {
+        flags += ZR_CLASS_MODEL_SKIN_INDEX;
+    }
+    
     // Alpha initial.
     new alphaInitial = attributes[ClassEdit_AlphaInitial];
     if (alphaInitial >= 0)
@@ -457,7 +503,7 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
         {
             // Check if the file exists.
             Format(overlay, sizeof(overlay), "materials/%s.vmt", overlay_path);
-            if (!FileExists(overlay))
+            if (!FileExists(overlay, true))
             {
                 flags += ZR_CLASS_OVERLAY_PATH;
             }
@@ -484,8 +530,16 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
         }
     }
     
-    // Immunity mode not implemented yet.
-        
+    // Immunity mode.
+    new ImmunityMode:immunityMode = attributes[ClassEdit_ImmunityMode];
+    if (immunityMode == Immunity_Invalid)
+    {
+        flags += ZR_CLASS_IMMUNITY_MODE;
+    }
+    
+    // Immunity amount.
+    // TODO: Validate amount value. This depends on the immunity mode.
+    
     // Health regen interval.
     new Float:healthRegenInterval = attributes[ClassEdit_RegenInterval];
     if (healthRegenInterval >= 0.0)
@@ -587,12 +641,12 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
 /**
  * Checks if the specified class index is a valid index.
  *
- * @param classindex    The class index to validate.
+ * @param classIndex    The class index to validate.
  * @return              True if the class exist, false otherwise.
  */
-stock bool:ClassValidateIndex(classindex)
+stock bool:ClassValidateIndex(classIndex)
 {
-    if (classindex >= 0 && classindex < ClassCount)
+    if (classIndex >= 0 && classIndex < ClassCount)
     {
         return true;
     }
@@ -660,10 +714,10 @@ stock ClassGetIndex(const String:name[], cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     decl String:current_name[64];
 
-    // Check if there are no classes.
-    if (ClassCount == 0)
+    // Check if there are no classes, or reading from player cache.
+    if (ClassCount == 0 || cachetype == ZR_CLASS_CACHE_PLAYER)
     {
-        return false;
+        return -1;
     }
     
     // Loop through all classes.

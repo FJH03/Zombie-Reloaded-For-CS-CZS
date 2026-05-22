@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Modify damage stuff here.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -216,6 +216,13 @@ public ZRTools_Action:DamageTraceAttack(client, inflictor, attacker, Float:damag
     
     // Here we know that attacker and client are different teams.
     
+    // Check if immunity module requires damage to be blocked.
+    if (ImmunityOnClientTraceAttack(client, attacker, damage, hitgroup, damagetype))
+    {
+        // Block damage.
+        return ACTION_HANDLED;
+    }
+    
     // If client is a human, then allow damage.
     if (InfectIsClientHuman(client))
     {
@@ -224,6 +231,8 @@ public ZRTools_Action:DamageTraceAttack(client, inflictor, attacker, Float:damag
     }
     
     // If damage hitgroups cvar is disabled, then allow damage.
+    // TODO: There are two cvars: zr_hitgroups and zr_damage_hitgroups. Maybe
+    //       just use zr_hitgroups?
     new bool:damagehitgroups = GetConVarBool(g_hCvarsList[CVAR_DAMAGE_HITGROUPS]);
     if (!damagehitgroups)
     {
@@ -323,12 +332,24 @@ public ZRTools_Action:DamageOnTakeDamage(client, inflictor, attacker, Float:dama
             return ACTION_CONTINUE;
         }
         
-        // Client is about to be infected, re-add HP so they aren't killed by knife.
-        new health = GetClientHealth(client);
-        SetEntityHealth(client, health + RoundToNearest(damage));
+        // Check if immunity module blocked or modified the damage.
+        new Action:immunityAction = ImmunityOnClientDamage(client, attacker, damage);
+        if (immunityAction != Plugin_Continue)
+        {
+            // Damage was blocked or modified.
+            return immunityAction;
+        }
         
-        // Allow damage.
-        return ACTION_CONTINUE;
+        // Client is about to be infected, re-add HP so they aren't killed by
+        // knife. But only do this when immunity mode is disabled.
+        if (ClassGetImmunityMode(client) == Immunity_None)
+        {
+            new health = GetClientHealth(client);
+            SetEntityHealth(client, health + RoundToNearest(damage));
+            
+            // Allow damage.
+            return ACTION_CONTINUE;
+        }
     }
     // Client was damaged by explosion.
     else if (damagetype & DMG_CSS_BLAST)
@@ -392,7 +413,7 @@ public Action:DamageSuicideIntercept(client, argc)
     // match, block it.
     
     // Check general criterias.
-    if ((suicideAfterInfect && !g_bZombieSpawned) ||    // Check if it should block suicides before mother zombie.
+    if ((suicideAfterInfect && !InfectHasZombieSpawned()) || // Check if it should block suicides before mother zombie.
         !ZRIsClientValid(client) ||                     // Validate client (to stop console).
         !IsPlayerAlive(client))                         // Check if dead.
     {

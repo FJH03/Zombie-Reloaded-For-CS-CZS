@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Handle admin functions and menus.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -177,7 +177,7 @@ public ZAdminMenuHandle(Handle:menu_zadmin, MenuAction:action, client, slot)
                 resend = false;
                 
                 // Send list of clients to infect.
-                MenuClientList(client, ZTeleForceHandle, true, true, false, "ZTele clients title");
+                MenuClientList(client, ZTele_ForceHandle, true, true, false, "ZTele clients title");
             }
         }
         

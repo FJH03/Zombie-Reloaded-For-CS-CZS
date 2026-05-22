@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Client infection functions.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -79,6 +79,17 @@ new bool:bZombie[MAXPLAYERS + 1];
 new bool:bInfectImmune[MAXPLAYERS + 1][2];
 
 /**
+ * Available mother zombie infection modes.
+ */
+enum InfectMode
+{
+    InfectMode_Invalid = -1,    /** Invalid mode, used by validators. */
+    InfectMode_Dynamic,         /** Every n-th player is infected. */
+    InfectMode_Absolute,        /** Keep n humans (negative n) or infect n zombies. */
+    InfectMode_Range            /** An absolute number of zombies infected (min to max). */
+}
+
+/**
  * Map is ending.
  */
 InfectOnMapEnd()
@@ -147,7 +158,7 @@ InfectOnClientDisconnect(client)
     }
     
     // If zombie hasn't spawned, then stop.
-    if (!g_bZombieSpawned)
+    if (!InfectHasZombieSpawned())
     {
         return;
     }
@@ -259,13 +270,10 @@ InfectOnClientSpawn(client)
     bZombie[client] = false;
     
     // Check if client is spawning on the terrorist team.
-    if (ZRIsClientOnTeam(client, CS_TEAM_T))
+    if (ZRIsClientOnTeam(client, CS_TEAM_T) && InfectHasZombieSpawned())
     {
-        if (g_bZombieSpawned)
-        {
-            CS_SwitchTeam(client, CS_TEAM_CT);
-            CS_RespawnPlayer(client);
-        }
+        CS_SwitchTeam(client, CS_TEAM_CT);
+        CS_RespawnPlayer(client);
     }
 }
 
@@ -301,7 +309,8 @@ InfectOnClientDeath(client, attacker)
     ToolsClientScore(attacker, true, true, score + bonus);
 }
 
-/** Client has been hurt.
+/**
+ * Client has been hurt.
  *
  * @param client        The client index.
  * @param attacker      The attacker index.
@@ -339,6 +348,13 @@ InfectOnClientHurt(client, attacker, const String:weapon[])
         return;
     }
     
+    // Check if the immunity module is handling the infection.
+    if (ImmunityOnClientInfect(client, attacker))
+    {
+        //PrintToChatAll("InfectOnClientHurt - Infect blocked.");
+        return;
+    }
+    
     // Infect client.
     InfectHumanToZombie(client, attacker);
 }
@@ -366,7 +382,7 @@ InfectOnRoundFreezeEnd()
     ZREndTimer(tInfectCountdown);
     
     // If the zombie has spawned already (had to be through admin) then stop.
-    if (g_bZombieSpawned)
+    if (InfectHasZombieSpawned())
     {
         return;
     }
@@ -413,12 +429,6 @@ InfectOnRoundEnd()
     // x = client index.
     for (new x = 1; x <=  MaxClients; x++)
     {
-        // If client isn't in-game, then stop.
-        if (!IsClientInGame(x))
-        {
-            continue;
-        }
-        
         // Disable zombie flag on client.
         bZombie[x] = false;
     }
@@ -446,126 +456,178 @@ public Action:InfectMotherZombie(Handle:timer)
         return;
     }
     
-    // Variable to store client stored in random array index.
-    new client;
-    
     // Prune list of immune clients.
-    // x = Array index.
-    // client = client index.
-    for (new x = 0; x < eligibleclients; x++)
+    eligibleclients = InfectRemoveImmuneClients(arrayEligibleClients);
+    
+    // Move all clients to CT.
+    InfectMoveAllToCT();
+    
+    new mothercount;
+    new ratio = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_RATIO]);
+    new min = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_MIN]);
+    new max = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_MAX]);
+    
+    // Count valid human clients.
+    new humancount;
+    ZRCountValidClients(_, humancount, _, true);
+    
+    // Get and validate infection mode. This will also log a warning on error.
+    new InfectMode:mode = InfectGetModeOrFail();
+    
+    // Apply infection mode.
+    switch (mode)
     {
-        // Stop pruning if there is only 1 player left.
-        if (eligibleclients <= 1)
+        case InfectMode_Invalid:
+        {
+            // Validation failed. Fall back to one mother zombie.
+            mothercount = 1;
+        }
+        case InfectMode_Dynamic:
+        {
+            // Dynamic mode. Every n-th player is infected.
+            
+            // A ratio of 0 will infect one zombie (to keep backwards compatibility).
+            if (ratio == 0)
+            {
+                mothercount = 1;
+            }
+            
+            // Calculate number of zombies to infect.
+            mothercount = RoundToNearest(float(humancount) / ratio);
+            
+            // Require at least one mother zombie.
+            if (mothercount == 0)
+            {
+                mothercount = 1;
+            }
+        }
+        case InfectMode_Absolute:
+        {
+            if (ratio > 0)
+            {
+                // Infect n humans.
+                mothercount = ratio;
+            }
+            else
+            {
+                // Infect all but n humans. Since ratio already is negative
+                // just add the numbers. (Zero ratio is catched by validator.)
+                mothercount = humancount + ratio;
+                
+                // Force at least one mother zombie.
+                if (mothercount == 0)
+                {
+                    mothercount = 1;
+                }
+            }
+        }
+        case InfectMode_Range:
+        {
+            // Get a random number between the range.
+            mothercount = Math_GetRandomInt(min, max);
+        }
+    }
+    
+    // Infect players.
+    for (new n = 0; n < mothercount; n++)
+    {
+        // Recount eligible clients.
+        eligibleclients = GetArraySize(arrayEligibleClients);
+        
+        // Stop if there are no more eligible clients.
+        if (eligibleclients <= 0)
         {
             break;
         }
         
-        // Get client stored in array index.
-        client = GetArrayCell(arrayEligibleClients, x);
+        // Get a random array index.
+        new i = Math_GetRandomInt(0, eligibleclients - 1);
         
-        // If client is immune from being a mother zombie, then stop.
+        // Get the client stored in the random array index.
+        new client = GetArrayCell(arrayEligibleClients, i);
+        
+        // Infect player.
+        InfectHumanToZombie(client, _, true);
+        
+        // Remove player from eligible client list.
+        RemoveFromArray(arrayEligibleClients, i);
+    }
+    
+    // Mother zombies have been infected.
+    g_bZombieSpawned = true;
+    
+    // Destroy client list.
+    CloseHandle(arrayEligibleClients);
+}
+
+/**
+ * Moves all alive clients to the CT team.
+ */
+InfectMoveAllToCT()
+{
+    // Move all clients to CT
+    for (new client = 1; client <= MaxClients; client++)
+    {
+        // If client isn't in-game, then stop.
+        if (!IsClientInGame(client))
+        {
+            continue;
+        }
+        
+        // If client is dead, then stop.
+        if (!IsPlayerAlive(client))
+        {
+            continue;
+        }
+        
+        // Switch client to CT team.
+        CS_SwitchTeam(client, CS_TEAM_CT);
+    }
+}
+
+/**
+ * Removes immune clients from a client list. If a client is removed, their
+ * immunity is also removed.
+ *
+ * @param clientList        List of clients.
+ * @param keepLastPlayer    Don't remove if there's only one player left.
+ *
+ * @return                  Number of clients remaining.
+ */
+InfectRemoveImmuneClients(Handle:clientList, bool:keepLastPlayer = true)
+{
+    new len = GetArraySize(clientList);
+    
+    // Loop though client list.
+    for (new i = 0; i < len; i++)
+    {
+        // Stop pruning if there is only one player left.
+        if (keepLastPlayer && len <= 1)
+        {
+            break;
+        }
+        
+        // Get client.
+        new client = GetArrayCell(clientList, i);
+        
+        // Check if client is immune from mother zombie infection.
         if (bInfectImmune[client][INFECT_TYPE_MOTHER])
         {
             // Take away immunity.
             bInfectImmune[client][INFECT_TYPE_MOTHER] = false;
             
             // Remove client from array.
-            RemoveFromArray(arrayEligibleClients, x);
+            RemoveFromArray(clientList, i);
             
-            // Subtract one from count.
-            eligibleclients--;
+            // Update list size.
+            len--;
             
             // Backtrack one index, because we deleted it out from under the loop.
-            x--;
+            i--;
         }
     }
     
-    // Move all clients to CT
-    for (new x = 1; x <= MaxClients; x++)
-    {
-        // If client isn't in-game, then stop.
-        if (!IsClientInGame(x))
-        {
-            continue;
-        }
-        
-        // If client is dead, then stop.
-        if (!IsPlayerAlive(x))
-        {
-            continue;
-        }
-        
-        // Switch client to CT team.
-        CS_SwitchTeam(x, CS_TEAM_CT);
-    }
-    
-    // Variable to store randomly chosen array index.
-    new randindex;
-    
-    // Ratio of mother zombies to humans.
-    new ratio = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_RATIO]);
-    
-    // If ratio is 0 or lower, then pick 1 zombie.
-    if (ratio <= 0)
-    {
-        // Get a random valid array index.
-        randindex = GetRandomInt(0, eligibleclients - 1);
-        
-        // Get the client stored in the random array index.
-        client = GetArrayCell(arrayEligibleClients, randindex);
-        
-        // Infect player.
-        InfectHumanToZombie(client, _, true);
-    }
-    else
-    {
-        // Initialize count variables
-        new zombiecount;
-        new humancount;
-        
-        // Count valid human clients
-        ZRCountValidClients(zombiecount, humancount, _, true);
-        
-        // Calculate mother zombie count.
-        new mothercount = RoundToNearest(float(humancount) / ratio);
-        
-        // If mothercount is 0, then set to 1.
-        if (!mothercount)
-        {
-            mothercount = 1;
-        }
-            
-        // x = current mother zombie count.
-        for (new x = 0; x < mothercount; x++)
-        {
-            // Recount eligible clients.
-            eligibleclients = GetArraySize(arrayEligibleClients);
-            
-            // If there are no more eligible clients, then break loop.
-            if (!eligibleclients)
-            {
-                break;
-            }
-            
-            // Get a random valid array index.
-            randindex = GetRandomInt(0, eligibleclients - 1);
-            
-            // Get the client stored in the random array index.
-            client = GetArrayCell(arrayEligibleClients, randindex);
-            
-            // Infect player.
-            InfectHumanToZombie(client, _, true);
-            
-            // Remove player from eligible zombie list.
-            RemoveFromArray(arrayEligibleClients, randindex);
-        }
-    }
-    
-    // Mother zombies have been infected.
-    g_bZombieSpawned = true;
-    
-    // Destroy handle.
-    CloseHandle(arrayEligibleClients);
+    return len;
 }
 
 /**
@@ -667,6 +729,9 @@ InfectHumanToZombie(client, attacker = -1, bool:motherinfect = false, bool:respa
     // Apply effects.
     InfectFireEffects(client);
     
+    // Stop coundown, if running.
+    InfectStopCountdown();
+    
     // If attacker is valid, then continue.
     if (ZRIsClientValid(attacker))
     {
@@ -680,23 +745,8 @@ InfectHumanToZombie(client, attacker = -1, bool:motherinfect = false, bool:respa
             FireEvent(event, false);
         }
         
-        // Give client's infector a point.
-        new score = ToolsClientScore(attacker, true, false);
-        ToolsClientScore(attacker, true, true, ++score);
-        
-        // Add a death to the zombie's score.
-        new deaths = ToolsClientScore(client, false, false);
-        ToolsClientScore(client, false, true, ++deaths);
-        
-        // Apply infect HP gain.
-        new healthgain = ClassGetHealthInfectGain(attacker);
-        new health = GetClientHealth(attacker);
-        
-        // Set attacker's new health.
-        SetEntityHealth(attacker, health + healthgain);
-        
-        // Forward event to modules.
-        ZHPOnHealthInfectGain(attacker);
+        // Apply score and health gain.
+        InfectUpdateScore(attacker, client);
     }
     
     // Get a list of all client's weapon indexes.
@@ -720,7 +770,7 @@ InfectHumanToZombie(client, attacker = -1, bool:motherinfect = false, bool:respa
         new bool:zombierespawn = GetConVarBool(g_hCvarsList[CVAR_INFECT_MZOMBIE_RESPAWN]);
         if(zombierespawn)
         {
-            ZTeleTeleportClient(client);
+            ZTele_TeleportClient(client);
         }
     }
     // Check override.
@@ -728,7 +778,7 @@ InfectHumanToZombie(client, attacker = -1, bool:motherinfect = false, bool:respa
     {
         if (respawnoverride && respawn)
         {
-            ZTeleTeleportClient(client);
+            ZTele_TeleportClient(client);
         }
     }
     
@@ -740,9 +790,10 @@ InfectHumanToZombie(client, attacker = -1, bool:motherinfect = false, bool:respa
     RoundEndOnClientInfected();
     DamageOnClientInfected(client, motherinfect);
     SEffectsOnClientInfected(client);
-    ZTeleOnClientInfected(client);
+    ZTele_OnClientInfected(client);
     ZHPOnClientInfected(client);
     APIOnClientInfected(client, attacker, motherinfect, respawnoverride, respawn);
+    ImmunityOnClientInfected(client);
 }
 
 /**
@@ -779,7 +830,7 @@ InfectZombieToHuman(client, bool:respawn = false, bool:protect = false)
     // Forward event to modules.
     ClassReloadPlayer(client);
     RoundEndOnClientInfected();
-    ZTeleOnClientInfected(client);
+    ZTele_OnClientInfected(client);
     
     // Give human a new knife. (If you leave the old one there will be glitches with the knife positioning)
     new knife = GetPlayerWeaponSlot(client, _:Slot_Melee);
@@ -793,7 +844,7 @@ InfectZombieToHuman(client, bool:respawn = false, bool:protect = false)
     // Check if we should respawn the client.
     if (respawn)
     {
-        ZTeleTeleportClient(client);
+        ZTele_TeleportClient(client);
     }
     
     // Check if we should spawn protect the client.
@@ -805,6 +856,31 @@ InfectZombieToHuman(client, bool:respawn = false, bool:protect = false)
     // Forward event to modules.
     SEffectsOnClientHuman(client);
     APIOnClientHumanPost(client, respawn, protect);
+    ImmunityOnClientHuman(client);
+}
+
+/**
+ * Updates score for attacker and victim. Applies health gain for attacker.
+ */
+InfectUpdateScore(attacker, victim)
+{
+    // Give client's infector a point.
+    new score = ToolsClientScore(attacker, true, false);
+    ToolsClientScore(attacker, true, true, ++score);
+    
+    // Add a death to the zombie's score.
+    new deaths = ToolsClientScore(victim, false, false);
+    ToolsClientScore(victim, false, true, ++deaths);
+    
+    // Apply infect HP gain.
+    new healthgain = ClassGetHealthInfectGain(attacker);
+    new health = GetClientHealth(attacker);
+    
+    // Set attacker's new health.
+    SetEntityHealth(attacker, health + healthgain);
+    
+    // Forward event to modules.
+    ZHPOnHealthInfectGain(attacker);
 }
 
 /**
@@ -995,6 +1071,11 @@ public InfectMenuClientsHandle(Handle:menu_infect_clients, MenuAction:action, cl
     }
 }
 
+bool:InfectHasZombieSpawned()
+{
+    return g_bZombieSpawned;
+}
+
 /**
  * Returns if a client is infected.
  * 
@@ -1042,7 +1123,7 @@ bool:InfectIsClientHuman(client)
  */
 stock InfectManualInfect(client, targets[], count, bool:respawnoverride = false, bool:respawn = false)
 {
-    new bool:zombiespawned = g_bZombieSpawned;
+    new bool:zombiespawned = InfectHasZombieSpawned();
     
     // If zombie hasn't spawned, then make targetted player(s) mother zombies.
     if (!zombiespawned)
@@ -1278,4 +1359,101 @@ public Action:InfectHumanCommand(client, argc)
     InfectManualHuman(client, targets, result, respawn, protect);
     
     return Plugin_Handled;
+}
+
+/**
+ * Converts a string to an infection mode.
+ *
+ * @param mode      Mode string to convert.
+ *
+ * @return          Infection mode or InfectMode_Invalid on error.
+ */
+InfectMode:InfectStringToMode(const String:mode[])
+{
+    if (strlen(mode) == 0)
+    {
+        return InfectMode_Invalid;
+    }
+    
+    if (StrEqual(mode, "dynamic", false))
+    {
+        return InfectMode_Dynamic;
+    }
+    else if (StrEqual(mode, "absolute", false))
+    {
+        return InfectMode_Absolute;
+    }
+    else if (StrEqual(mode, "range", false))
+    {
+        return InfectMode_Range;
+    }
+    
+    return InfectMode_Invalid;
+}
+
+/**
+ * Gets and validates the infection mode. On error it will log a warning.
+ *
+ * @return  Infection mode or InfectMode_Invalid on error.
+ */
+InfectMode:InfectGetModeOrFail()
+{
+    new String:modeName[16];
+    GetConVarString(g_hCvarsList[CVAR_INFECT_MZOMBIE_MODE], modeName, sizeof(modeName));
+    
+    new InfectMode:mode = InfectStringToMode(modeName);
+    new ratio = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_RATIO]);
+    new min = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_MIN]);
+    new max = GetConVarInt(g_hCvarsList[CVAR_INFECT_MZOMBIE_MAX]);
+    
+    // Validate.
+    switch (mode)
+    {
+        case InfectMode_Invalid:
+        {
+            LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Infect, "Config Validation", "Warning: Invalid infection mode (\"%s\"). Falling back to one mother zombie.", modeName);
+        }
+        case InfectMode_Dynamic:
+        {
+            if (ratio < 0)
+            {
+                LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Infect, "Config Validation", "Warning: Invalid infection ratio (\"%d\"). Must be zero or positive in dynamic mode. Falling back to one mother zombie.", ratio);
+                return InfectMode_Invalid;
+            }
+        }
+        case InfectMode_Absolute:
+        {
+            if (ratio == 0)
+            {
+                LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Infect, "Config Validation", "Warning: Invalid infection ratio (\"%d\"). Must be nonzero in absolute mode. Falling back to one mother zombie.", ratio);
+                return InfectMode_Invalid;
+            }
+        }
+        case InfectMode_Range:
+        {
+            new bool:failed = false;
+            if (min <= 0)
+            {
+                LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Infect, "Config Validation", "Warning: Invalid infection range (\"%d\"). Cvar zr_infect_mzombie_min must be nonzero and positive. Falling back to one mother zombie.", min);
+                failed = true;
+            }
+            if (max <= 0)
+            {
+                LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Infect, "Config Validation", "Warning: Invalid infection range (\"%d\"). Cvar zr_infect_mzombie_max must be nonzero and positive. Falling back to one mother zombie.", max);
+                failed = true;
+            }
+            if (min > max || max < min)
+            {
+                LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Infect, "Config Validation", "Warning: Infection range values are overlapping or reversed. Check zr_infect_mzombie_min and zr_infect_mzombie_min. Falling back to one mother zombie.");
+                failed = true;
+            }
+            
+            if (failed)
+            {
+                return InfectMode_Invalid;
+            }
+        }
+    }
+    
+    return mode;
 }

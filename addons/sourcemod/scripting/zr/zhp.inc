@@ -7,7 +7,7 @@
  *  Type:          Module
  *  Description:   Displays HP to zombies.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -250,7 +250,6 @@ ZHPUpdateHUD(client)
     
     // Display HP
     TranslationPrintHintText(client, "Display HP", health);
-    StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
 }
 
 /**

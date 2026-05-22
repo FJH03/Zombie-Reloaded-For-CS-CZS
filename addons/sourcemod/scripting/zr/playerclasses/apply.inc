@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Functions for applying attributes and effects on a client.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -88,6 +88,7 @@ bool:ClassApplyModel(client, classindex, cachetype = ZR_CLASS_CACHE_PLAYER)
     new ModelTeam:team;
     new access;
     new model;
+    new skinIndex = 0;
     
     // Get correct index according to cache type.
     if (cachetype == ZR_CLASS_CACHE_PLAYER)
@@ -101,6 +102,9 @@ bool:ClassApplyModel(client, classindex, cachetype = ZR_CLASS_CACHE_PLAYER)
     
     // Get the model path from the specified cache.
     ClassGetModelPath(index, modelpath, sizeof(modelpath), cachetype);
+    
+    // Get model skin index.
+    skinIndex = ClassGetModelSkinIndex(index, cachetype);
     
     // Get model team setting from the specified cache.
     team = ModelsTeamIdToTeam(ClassGetTeamID(index, cachetype));
@@ -185,6 +189,8 @@ bool:ClassApplyModel(client, classindex, cachetype = ZR_CLASS_CACHE_PLAYER)
     }
     
     SetEntityModel(client, modelpath);
+    SetEntProp(client, Prop_Send, "m_nSkin", skinIndex);
+    
     return true;
 }
 

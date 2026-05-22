@@ -7,7 +7,7 @@
  *  Type:          Module
  *  Description:   Protects late-joining players from zombies for x seconds.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -113,7 +113,7 @@ SpawnProtectStart(client)
     }
     
     // If zombie hasn't spawned, then stop.
-    if (!g_bZombieSpawned)
+    if (!InfectHasZombieSpawned())
     {
         return;
     }
@@ -173,7 +173,6 @@ SpawnProtectStart(client)
     
     // Send time left in a hud message.
     TranslationPrintHintText(client, "Spawn Protect", pSpawnProtectTime[client]);
-    StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
     
     // Start repeating timer.
     tSpawnProtect[client] = CreateTimer(1.0, SpawnProtectTimer, client, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);

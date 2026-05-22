@@ -7,7 +7,7 @@
  *  Type:          Core 
  *  Description:   Weapon alpha functions, and alpha updating on drop/pickup.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -81,6 +81,16 @@ WeaponAlphaOnClientDisconnect(client)
  */
 WeaponAlphaOnItemPickupPost(client, weapon)
 {
+    if (Entity_HasChildren(weapon))
+    {
+        // Don't apply alpha value if weapon has children. Render mode is
+        // recursively applied to child entities that may not have the render
+        // mode attribute - and cause errors like this:
+        // Native "SetEntProp" reported: Property "m_nRenderMode" not found
+        // (entity 666/info_particle_system)
+        return;
+    }
+    
     // Get client's current alpha.
     new alpha = ToolsGetEntityAlpha(client);
     

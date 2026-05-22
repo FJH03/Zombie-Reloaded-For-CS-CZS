@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Retrieving class attributes from certain caches.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -235,7 +235,7 @@ stock ClassGetGroup(index, String:buffer[], maxlen, cachetype = ZR_CLASS_CACHE_P
 }
 
 /**
- * Gets the class name to be displayed in the class menu.
+ * Gets the class name displayed in the class menu.
  *
  * @param index     Index of the class in a class cache or a client index,
  *                  depending on the cache type specified.
@@ -342,6 +342,38 @@ stock ClassGetModelPath(index, String:buffer[], maxlen, cachetype = ZR_CLASS_CAC
         case ZR_CLASS_CACHE_PLAYER:
         {
             return strcopy(buffer, maxlen, ClassPlayerCache[index][Class_ModelPath]);
+        }
+    }
+    return -1;
+}
+
+/**
+ * Gets the model skin index from the specified class.
+ *
+ * @param index     Index of the class in a class cache or a client index,
+ *                  depending on the cache type specified.
+ * @param cachetype Optional. Specifies what class cache to read from. Options:
+ *                  ZR_CLASS_CACHE_ORIGINAL - Unchanced class data.
+ *                  ZR_CLASS_CACHE_MODIFIED - Changed/newest class data.
+ *                  ZR_CLASS_CACHE_PLAYER (default) - Player cache. If this one
+ *                  is used, index will be used as a client index.
+ * @return  The model skin index in the specified class. -1 on error.
+ */
+stock ClassGetModelSkinIndex(index, cachetype = ZR_CLASS_CACHE_PLAYER)
+{
+    switch (cachetype)
+    {
+        case ZR_CLASS_CACHE_ORIGINAL:
+        {
+            return ClassData[index][Class_ModelSkinIndex];
+        }
+        case ZR_CLASS_CACHE_MODIFIED:
+        {
+            return ClassDataCache[index][Class_ModelSkinIndex];
+        }
+        case ZR_CLASS_CACHE_PLAYER:
+        {
+            return ClassPlayerCache[index][Class_ModelSkinIndex];
         }
     }
     return -1;
@@ -640,7 +672,7 @@ stock Float:ClassGetNapalmTime(index, cachetype = ZR_CLASS_CACHE_PLAYER)
  */
 
 /**
- * Gets the immunity mode to the specified class.
+ * Gets the immunity mode for the specified class.
  *
  * @param index     Index of the class in a class cache or a client index,
  *                  depending on the cache type specified.
@@ -649,9 +681,10 @@ stock Float:ClassGetNapalmTime(index, cachetype = ZR_CLASS_CACHE_PLAYER)
  *                  ZR_CLASS_CACHE_MODIFIED - Changed/newest class data.
  *                  ZR_CLASS_CACHE_PLAYER (default) - Player cache. If this one
  *                  is used, index will be used as a client index.
- * @return  Current immunity mode to the specified class. -1 on error.
+ * @return  Current immunity mode to the specified class. Immunity_Invalid on
+ *          error.
  */
-stock ClassGetImmunityMode(index, cachetype = ZR_CLASS_CACHE_PLAYER)
+stock ImmunityMode:ClassGetImmunityMode(index, cachetype = ZR_CLASS_CACHE_PLAYER)
 {
     switch (cachetype)
     {
@@ -668,11 +701,11 @@ stock ClassGetImmunityMode(index, cachetype = ZR_CLASS_CACHE_PLAYER)
             return ClassPlayerCache[index][Class_ImmunityMode];
         }
     }
-    return -1;
+    return Immunity_Invalid;
 }
 
 /**
- * Gets the immunity amount to the specified class.
+ * Gets the immunity amount for the specified class.
  *
  * @param index     Index of the class in a class cache or a client index,
  *                  depending on the cache type specified.
@@ -681,9 +714,9 @@ stock ClassGetImmunityMode(index, cachetype = ZR_CLASS_CACHE_PLAYER)
  *                  ZR_CLASS_CACHE_MODIFIED - Changed/newest class data.
  *                  ZR_CLASS_CACHE_PLAYER (default) - Player cache. If this one
  *                  is used, index will be used as a client index.
- * @return  Current immunity amount to the specified class. -1.0 on error.
+ * @return  Current immunity amount fot the specified class. -1 on error.
  */
-stock Float:ClassGetImmunityAmount(index, cachetype = ZR_CLASS_CACHE_PLAYER)
+stock ClassGetImmunityAmount(index, cachetype = ZR_CLASS_CACHE_PLAYER)
 {
     switch (cachetype)
     {
@@ -700,7 +733,39 @@ stock Float:ClassGetImmunityAmount(index, cachetype = ZR_CLASS_CACHE_PLAYER)
             return ClassPlayerCache[index][Class_ImmunityAmount];
         }
     }
-    return -1.0;
+    return -1;
+}
+
+/**
+ * Gets the immunity cooldown for the specified class.
+ *
+ * @param index     Index of the class in a class cache or a client index,
+ *                  depending on the cache type specified.
+ * @param cachetype Optional. Specifies what class cache to read from. Options:
+ *                  ZR_CLASS_CACHE_ORIGINAL - Unchanced class data.
+ *                  ZR_CLASS_CACHE_MODIFIED - Changed/newest class data.
+ *                  ZR_CLASS_CACHE_PLAYER (default) - Player cache. If this one
+ *                  is used, index will be used as a client index.
+ * @return  Current immunity cooldown for the specified class. -1 on error.
+ */
+stock ClassGetImmunityCooldown(index, cachetype = ZR_CLASS_CACHE_PLAYER)
+{
+    switch (cachetype)
+    {
+        case ZR_CLASS_CACHE_ORIGINAL:
+        {
+            return ClassData[index][Class_ImmunityCooldown];
+        }
+        case ZR_CLASS_CACHE_MODIFIED:
+        {
+            return ClassDataCache[index][Class_ImmunityCooldown];
+        }
+        case ZR_CLASS_CACHE_PLAYER:
+        {
+            return ClassPlayerCache[index][Class_ImmunityCooldown];
+        }
+    }
+    return -1;
 }
 
 /**
@@ -1104,6 +1169,10 @@ stock ClassAttributeNameToFlag(const String:attributename[])
     {
         return ZR_CLASS_MODEL_PATH;
     }
+    else if (StrEqual(attributename, "model_skin_index", false))
+    {
+        return ZR_CLASS_MODEL_SKIN_INDEX;
+    }
     else if (StrEqual(attributename, "alpha_initial", false))
     {
         return ZR_CLASS_ALPHA_INITIAL;
@@ -1143,6 +1212,10 @@ stock ClassAttributeNameToFlag(const String:attributename[])
     else if (StrEqual(attributename, "immunity_amount", false))
     {
         return ZR_CLASS_IMMUNITY_AMOUNT;
+    }
+    else if (StrEqual(attributename, "immunity_cooldown", false))
+    {
+        return ZR_CLASS_IMMUNITY_COOLDOWN;
     }
     else if (StrEqual(attributename, "no_fall_damage", false))
     {
@@ -1262,11 +1335,13 @@ stock ClassDataTypes:ClassGetAttributeType(attributeflag)
         
         // Integer.
         case ZR_CLASS_FLAGS,
+              ZR_CLASS_MODEL_SKIN_INDEX,
               ZR_CLASS_ALPHA_INITIAL,
               ZR_CLASS_ALPHA_DAMAGED,
               ZR_CLASS_ALPHA_DAMAGE,
               ZR_CLASS_FOV,
-              ZR_CLASS_IMMUNITY_MODE,
+              ZR_CLASS_IMMUNITY_AMOUNT,
+              ZR_CLASS_IMMUNITY_COOLDOWN,
               ZR_CLASS_HEALTH,
               ZR_CLASS_HEALTH_REGEN_AMOUNT,
               ZR_CLASS_HEALTH_INFECT_GAIN,
@@ -1277,7 +1352,6 @@ stock ClassDataTypes:ClassGetAttributeType(attributeflag)
         
         // Float.
         case ZR_CLASS_NAPALM_TIME,
-              ZR_CLASS_IMMUNITY_AMOUNT,
               ZR_CLASS_HEALTH_REGEN_INTERVAL,
               ZR_CLASS_SPEED,
               ZR_CLASS_KNOCKBACK,
@@ -1292,7 +1366,8 @@ stock ClassDataTypes:ClassGetAttributeType(attributeflag)
               ZR_CLASS_NAME,
               ZR_CLASS_DESCRIPTION,
               ZR_CLASS_MODEL_PATH,
-              ZR_CLASS_OVERLAY_PATH:
+              ZR_CLASS_OVERLAY_PATH,
+              ZR_CLASS_IMMUNITY_MODE:
         {
             return ClassDataType_String;
         }

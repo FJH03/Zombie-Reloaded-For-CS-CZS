@@ -7,6 +7,21 @@
  *  Type:          Core
  *  Description:   Functions for handling class related events.
  *
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * ============================================================================
  */
 
@@ -184,7 +199,6 @@ ClassOnClientDisconnect(client)
 ClassOnClientSpawn(client)
 {
     decl String:originalmodel[PLATFORM_MAX_PATH];
-    decl String:steamid[16];
     decl String:classname[64];
     new filter[ClassFilter];
     
@@ -226,12 +240,11 @@ ClassOnClientSpawn(client)
         // Mark player as not in admin mode.
         ClassPlayerInAdminMode[client] = false;
         
-        // Get random class setting and steam id.
+        // Get random class setting.
         new bool:randomclass = GetConVarBool(g_hCvarsList[CVAR_CLASSES_RANDOM]);
-        GetClientAuthString(client, steamid, sizeof(steamid));
         
         // Assign random classes if enabled. Always do it for bots.
-        if (randomclass || StrEqual(steamid, "BOT"))
+        if (randomclass || IsFakeClient(client))
         {
             // Setup filtering
             // ---------------

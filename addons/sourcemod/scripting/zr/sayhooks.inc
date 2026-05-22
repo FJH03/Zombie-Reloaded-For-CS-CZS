@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Hook plugin say commands and redirect to their handling module.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -50,6 +50,7 @@
 #define SAYHOOKS_KEYWORD_ZTELE      "ztele"
 #define SAYHOOKS_KEYWORD_ZHP        "zhp"
 #define SAYHOOKS_KEYWORD_ZMARKET    "zmarket"
+#define SAYHOOKS_KEYWORD_ZSHIELD    "zshield"
 /**
  * @endsection
  */

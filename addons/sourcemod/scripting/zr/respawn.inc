@@ -7,7 +7,7 @@
  *  Type:          Module 
  *  Description:   Players come back to life
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -159,7 +159,6 @@ bool:RespawnSpawnClient(client, bool:zombie = false, bool:zombieIfSuicide = fals
     }
     
     // Get respawn condition.
-    //new bool:zombieIfSuicide = GetConVarBool(g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE_WORLD]);
     new RespawnCondition:condition = RespawnToContition(zombie, zombieIfSuicide);
     
     // Trigger API forward.
@@ -185,7 +184,7 @@ bool:RespawnSpawnClient(client, bool:zombie = false, bool:zombieIfSuicide = fals
     CS_RespawnPlayer(client);
     
     // Check if first zombie has spawned.
-    if (g_bZombieSpawned)
+    if (InfectHasZombieSpawned())
     {
         // Infect if player should spawn as zombie.
         if (zombie)
@@ -238,11 +237,14 @@ public Action:RespawnTimer(Handle:timer, any:client)
         return;
     }
     
-    // Get respawn team.
-    new bool:respawn_zombie = GetConVarBool(g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE]);
+    // Get whether player should respawn as zombie.
+    new bool:zombie = GetConVarBool(g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE]);
+    
+    // Get whether zombies died by suicide should respawn as zombies.
+    new bool:zombieIfSuicide = GetConVarBool(g_hCvarsList[CVAR_RESPAWN_TEAM_ZOMBIE_WORLD]);
     
     // Spawn player.
-    RespawnSpawnClient(client, respawn_zombie, true);
+    RespawnSpawnClient(client, zombie, zombieIfSuicide);
 }
 
 /**

@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Download validation.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ DownloadsLoad()
         GetArrayString(arrayDownloads, x, downloadpath, sizeof(downloadpath));
         
         // If file doesn't exist, then remove, log, and stop.
-        if (!FileExists(downloadpath))
+        if (!FileExists(downloadpath, true))
         {
             // Remove client from array.
             RemoveFromArray(arrayDownloads, x);

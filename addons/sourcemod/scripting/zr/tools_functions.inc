@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   API for offsets/signatures exposed in tools.inc
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -65,6 +65,21 @@ stock ToolsClientVelocity(client, Float:vecVelocity[3], bool:apply = true, bool:
     
     // Apply velocity on client.
     TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vecVelocity);
+}
+
+/**
+ * Gets client's velocity.
+ *
+ * @param client        The client index.
+ * @param vecVelocity   Array to store vector in.
+ */
+stock ToolsGetClientVelocity(client, Float:vecVelocity[3])
+{
+    // x = vector component.
+    for (new x = 0; x < 3; x++)
+    {
+        vecVelocity[x] = GetEntDataFloat(client, g_iToolsVelocity + (x*4));
+    }
 }
 
 /**

@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Model manager.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -125,7 +125,7 @@ ModelsLoad()
         strcopy(buffer, sizeof(buffer), path);
         StrCat(buffer, sizeof(buffer), name);
         StrCat(buffer, sizeof(buffer), ".mdl");
-        if (!FileExists(buffer))
+        if (!FileExists(buffer, true))
         {
             LogEvent(false, LogType_Error, LOG_CORE_EVENTS, LogModule_Models, "Config Validation", "Warning: Invalid model name/path setting at index %d. File not found: \"%s\".", ModelCount + failedCount, buffer);
             failedCount++;

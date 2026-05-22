@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Translation parsing functions.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -331,6 +331,12 @@ stock TranslationPrintHintText(client, any:...)
     
     // Print translated phrase to client.
     PrintHintText(client, translation);
+    
+    // Stop hint text sound in CS:S.
+    if (g_Game == Game_CSS)
+    {
+        StopSound(client, SNDCHAN_STATIC, "UI/hint.wav");
+    }
 }
 
 /**

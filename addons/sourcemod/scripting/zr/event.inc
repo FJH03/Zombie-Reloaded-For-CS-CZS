@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Event hooking and forwarding.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -144,6 +144,7 @@ public Action:EventRoundEnd(Handle:event, const String:name[], bool:dontBroadcas
     RespawnOnRoundEnd();
     ZSpawnOnRoundEnd();
     VolOnRoundEnd();
+    ImmunityOnRoundEnd();
 }
 
 /**
@@ -162,6 +163,7 @@ public Action:EventPlayerTeam(Handle:event, const String:name[], bool:dontBroadc
     
     // Forward event to modules.
     InfectOnClientTeam(index, team);
+    ImmunityOnClientTeam(index);
     
     return Plugin_Handled;
 }
@@ -187,9 +189,10 @@ public Action:EventPlayerSpawn(Handle:event, const String:name[], bool:dontBroad
     RoundStartOnClientSpawn(index);
     SEffectsOnClientSpawn(index);
     RespawnOnClientSpawn(index);
-    ZTeleOnClientSpawn(index);
+    ZTele_OnClientSpawn(index);
     ZHPOnClientSpawn(index);
     VolOnPlayerSpawn(index);
+    ImmunityClientSpawn(index);
     
     // Fire post player_spawn event.
     CreateTimer(0.1, EventPlayerSpawnPost, index);
@@ -271,6 +274,14 @@ public Action:EventPlayerDeath(Handle:event, const String:name[], bool:dontBroad
     new index = GetClientOfUserId(GetEventInt(event, "userid"));
     new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
     
+    // Validate client.
+    if (!ZRIsClientValid(index))
+    {
+        // If the client isn't a player, a player really didn't die now. Some
+        // other mods might sent this event with bad data.
+        return;
+    }
+    
     // Forward event to modules.
     ClassOnClientDeath(index);
     InfectOnClientDeath(index, attacker);
@@ -280,10 +291,11 @@ public Action:EventPlayerDeath(Handle:event, const String:name[], bool:dontBroad
     RespawnOnClientDeath(index, attacker, weapon);
     NapalmOnClientDeath(index);
     ZSpawnOnClientDeath(index);
-    ZTeleOnClientDeath(index);
+    ZTele_OnClientDeath(index);
     ZHPOnClientDeath(index);
     VolOnPlayerDeath(index);
     RoundEndOnClientDeath();
+    ImmunityOnClientDeath(index);
 }
 
 /**

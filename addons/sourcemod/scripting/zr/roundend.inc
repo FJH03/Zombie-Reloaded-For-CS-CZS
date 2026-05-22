@@ -7,7 +7,7 @@
  *  Type:          Core
  *  Description:   Handles round end actions.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -135,6 +135,14 @@ RoundEndOnRoundFreezeEnd()
     // Convert to seconds.
     roundtime *= 60.0;
     
+    // Subtract one second if running CS: GO to prevent round draw when round
+    // ends. For some reason the timing doesn't match the actual round end.
+    // Thanks to Jargon.
+    if (g_Game == Game_CSGO)
+    {
+        roundtime--;
+    }
+    
     // Start timer.
     tRoundEnd = CreateTimer(roundtime, RoundEndTimer, _, TIMER_FLAG_NO_MAPCHANGE);
 }
@@ -252,7 +260,7 @@ public Action:RoundEndTimer(Handle:timer)
 bool:RoundEndGetRoundStatus(&RoundEndOutcome:outcome)
 {
     // If zombie hasn't spawned, then stop.
-    if (!g_bZombieSpawned)
+    if (!InfectHasZombieSpawned())
     {
         // Round isn't over.
         return false;

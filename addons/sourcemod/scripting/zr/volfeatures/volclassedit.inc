@@ -7,7 +7,7 @@
  *  Type:           Module
  *  Description:    Class editor volumetric feature.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
  * Empty attribute structure with all settings set to be ignored.
  */
 new VolEmptyAttributes[ClassEditableAttributes] = {
+    -1,                             /** ModelSkinIndex */
     -1,                             /** AlphaInitial */
     -1,                             /** AlphaDamaged */
     -1,                             /** AlphaDamage */
@@ -41,8 +42,9 @@ new VolEmptyAttributes[ClassEditableAttributes] = {
     
     -1,                             /** HasNapalm */
     -1.0,                           /** NapalmTime */
-    -1,                             /** ImmunityMode */
-    -1.0,                           /** ImmunityAmount */
+    Immunity_Invalid,               /** ImmunityMode */
+    -1,                             /** ImmunityAmount */
+    -1,                             /** ImmunityCooldown */
     -1,                             /** NoFallDamage */
     
     -1.0,                           /** RegenInterval */
@@ -237,7 +239,7 @@ VolClassEditSetAttribute(dataIndex, const String:attribName[], const String:attr
         }
     }
     
-    /* Player behaviour */
+    /* Player behavior */
     else if (StrEqual(attribName, "immunity_mode", false))
     {
         if (VolClassEditSetImmunityMode(dataIndex, attribValue))
@@ -248,6 +250,13 @@ VolClassEditSetAttribute(dataIndex, const String:attribName[], const String:attr
     else if (StrEqual(attribName, "immunity_amount", false))
     {
         if (VolClassEditSetImmunityAmount(dataIndex, attribValue))
+        {
+            return true;
+        }
+    }
+    else if (StrEqual(attribName, "immunity_cooldown", false))
+    {
+        if (VolClassEditSetImmunityCooldown(dataIndex, attribValue))
         {
             return true;
         }
@@ -394,12 +403,16 @@ VolClassEditDumpData(dataIndex, String:buffer[], maxlen)
             Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Napalm time:", valuebuffer);
             cellswritten += StrCat(buffer, maxlen, linebuffer);
             
-            VolClassEditIntToString(dataIndex, ClassEdit_ImmunityMode, valuebuffer, sizeof(valuebuffer));
+            ImmunityModeToString(VolClassEditData[dataIndex][ClassEdit_ImmunityMode], valuebuffer, sizeof(valuebuffer));
             Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Immunity mode:", valuebuffer);
             cellswritten += StrCat(buffer, maxlen, linebuffer);
             
-            VolClassEditFloatToString(dataIndex, ClassEdit_ImmunityAmount, valuebuffer, sizeof(valuebuffer));
+            VolClassEditIntToString(dataIndex, ClassEdit_ImmunityAmount, valuebuffer, sizeof(valuebuffer));
             Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Immunity amount:", valuebuffer);
+            cellswritten += StrCat(buffer, maxlen, linebuffer);
+            
+            VolClassEditIntToString(dataIndex, ClassEdit_ImmunityCooldown, valuebuffer, sizeof(valuebuffer));
+            Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Immunity cooldown:", valuebuffer);
             cellswritten += StrCat(buffer, maxlen, linebuffer);
             
             VolClassEditIntToString(dataIndex, ClassEdit_NoFallDamage, valuebuffer, sizeof(valuebuffer));
@@ -458,7 +471,7 @@ VolClassEditDumpData(dataIndex, String:buffer[], maxlen)
  */
 VolClassEditApply(client, dataIndex)
 {
-    switch (VolClassEditData[client][VolClassEdit_Mode])
+    switch (VolClassEditData[dataIndex][VolClassEdit_Mode])
     {
         case ClassEditMode_Name:
         {
@@ -494,7 +507,7 @@ VolClassEditRestore(client, dataIndex)
 {
     new classindex = ClassGetActiveIndex(client);
     
-    switch (VolClassEditData[client][VolClassEdit_Mode])
+    switch (VolClassEditData[dataIndex][VolClassEdit_Mode])
     {
         case ClassEditMode_Name:
         {
@@ -921,7 +934,8 @@ bool:VolClassEditSetImmunityMode(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityMode] = StringToInt(value);
+    new ImmunityMode:mode = ImmunityStringToMode(value);
+    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityMode] = mode;
     return true;
 }
 
@@ -942,7 +956,28 @@ bool:VolClassEditSetImmunityAmount(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityAmount] = StringToFloat(value);
+    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityAmount] = StringToInt(value);
+    return true;
+}
+
+/**
+ * Sets the immunity cooldown attribute.
+ *
+ * Note: The value is not validated!
+ *
+ * @param dataIndex     Local data index.
+ * @param value         String value to set (converted to proper type by this
+ *                      function).
+ * @return              True if set, false if empty.
+ */
+bool:VolClassEditSetImmunityCooldown(dataIndex, const String:value[])
+{
+    if (strlen(value) == 0)
+    {
+        return false;
+    }
+    
+    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityCooldown] = StringToInt(value);
     return true;
 }
 
@@ -1192,16 +1227,23 @@ VolClassEditUpdateAttributes(client, const attributes[])
     }
     
     // Immunity mode.
-    if (attributes[ClassEdit_ImmunityMode] > -1)
+    if (attributes[ClassEdit_ImmunityMode] != Immunity_Invalid)
     {
         ClassPlayerCache[client][Class_ImmunityMode] = attributes[ClassEdit_ImmunityMode];
         numChanges++;
     }
     
     // Immunity amount.
-    if (attributes[ClassEdit_ImmunityAmount] > -1.0)
+    if (attributes[ClassEdit_ImmunityAmount] > -1)
     {
         ClassPlayerCache[client][Class_ImmunityAmount] = attributes[ClassEdit_ImmunityAmount];
+        numChanges++;
+    }
+    
+    // Immunity cooldown.
+    if (attributes[ClassEdit_ImmunityCooldown] > -1)
+    {
+        ClassPlayerCache[client][Class_ImmunityCooldown] = attributes[ClassEdit_ImmunityCooldown];
         numChanges++;
     }
     
@@ -1330,7 +1372,7 @@ VolClassEditRestoreAttributes(client, classindex, const attributes[])
     }
     
     // Immunity mode.
-    if (attributes[ClassEdit_ImmunityMode] > -1)
+    if (attributes[ClassEdit_ImmunityMode] != Immunity_Invalid)
     {
         ClassPlayerCache[client][Class_ImmunityMode] = ClassGetImmunityMode(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;

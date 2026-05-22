@@ -7,7 +7,7 @@
  *  Type:          Module
  *  Description:   Fog, light style, sky, sun rendering, etc
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -299,9 +299,6 @@ VAmbienceApplyFog(bool:override = false)
     // If fog is disabled, then stop.
     new bool:fog = GetConVarBool(g_hCvarsList[CVAR_VEFFECTS_FOG]);
     
-    // DUE TO SOURCEMOD NOT SUPPORT FOG, DISABLE.
-    fog = false;
-    
     if (!fog)
     {
         return;
@@ -318,6 +315,7 @@ VAmbienceApplyFog(bool:override = false)
         {
             // Delete fog.
             AcceptEntityInput(fogindex, "Kill");
+            fogindex = -1;
         }
     }
     

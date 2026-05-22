@@ -7,7 +7,7 @@
  *  Type:          Core 
  *  Description:   General plugin functions and defines.
  *
- *  Copyright (C) 2009  Greyscale, Richard Helgeby
+ *  Copyright (C) 2009-2013  Greyscale, Richard Helgeby
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -53,6 +53,47 @@ enum EligibleCondition
  * Global variable set to true when the first zombie(s) is/are spawned.
  */
 new bool:g_bZombieSpawned;
+
+/**
+ * Supported games.
+ */
+enum Game
+{
+    Game_Unknown = -1,
+    Game_CSS,
+    Game_CSGO
+}
+
+/**
+ * Current game.
+ */
+new Game:g_Game = Game_Unknown;
+#pragma unused g_Game
+
+/**
+ * Updates g_game. Will log a warning if a unsupported game is detected.
+ */
+UpdateGameFolder()
+{
+    new String:gameFolder[PLATFORM_MAX_PATH];
+    GetGameFolderName(gameFolder, sizeof(gameFolder));
+    
+    if (StrEqual(gameFolder, "cstrike", false))
+    {
+        g_Game = Game_CSS;
+        PrintToServer("Game detected: cstrike");
+        return;
+    }
+    else if (StrEqual(gameFolder, "csgo", false))
+    {
+        g_Game = Game_CSGO;
+        PrintToServer("Game detected: csgo");
+        return;
+    }
+    
+    LogError("Warning: Zombie:Reloaded doesn't support this game: %s", gameFolder);
+    g_Game = Game_Unknown;
+}
 
 /**
  * Function to convert numbers to defined units.
@@ -203,7 +244,7 @@ stock bool:ZRIsConsole(index)
 stock bool:ZRCountValidClients(&zombiecount = 0, &humancount = 0, bool:alive = true, bool:ignorezombiespawned = false)
 {
     // If zombie hasn't spawned and were not only counting humans, then stop.
-    if (!g_bZombieSpawned && !ignorezombiespawned)
+    if (!InfectHasZombieSpawned() && !ignorezombiespawned)
     {
         return false;
     }
@@ -435,4 +476,45 @@ stock Math_GetRandomInt(min, max)
 	}
 
 	return RoundToCeil(float(random) / (float(SIZE_OF_INT) / float(max - min + 1))) + min - 1;
+}
+
+/**
+ * (from SMLIB)
+ * Gets the parent entity of an entity.
+ * 
+ * @param entity		Entity Index.
+ * @return				Entity Index of the parent.
+ */
+stock Entity_GetParent(entity)
+{
+	return GetEntPropEnt(entity, Prop_Data, "m_pParent");
+}
+
+/**
+ * Returns whether an entity is referred to as the parent entity.
+ *
+ * @praram entity       Entity index.
+ *
+ * @return              True if entity has children, false otherwise.
+ */
+stock bool:Entity_HasChildren(entity)
+{
+    new maxEntities = GetMaxEntities();
+    
+    // Loop through all entity indexes, after players.
+    for (new loopEntity = MAXPLAYERS + 1; loopEntity < maxEntities; loopEntity++)
+    {
+        if (!IsValidEntity(loopEntity))
+        {
+            continue;
+        }
+        
+        new parentEntity = Entity_GetParent(loopEntity);
+        if (parentEntity == entity)
+        {
+            return true;
+        }
+    }
+    
+    return false;
 }
