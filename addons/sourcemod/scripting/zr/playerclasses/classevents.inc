@@ -200,7 +200,7 @@ ClassOnClientSpawn(client)
 {
     decl String:originalmodel[PLATFORM_MAX_PATH];
     decl String:classname[64];
-    new filter[ClassFilter];
+    ClassFilter filter;
     
     // Check if the player is dead. Spawning into the game is also a event in
     // the connection process.
@@ -250,13 +250,13 @@ ClassOnClientSpawn(client)
             // ---------------
             
             // Exclude special class flags like mother zombies and admin classes.
-            filter[ClassFilter_DenyFlags] = ZR_CLASS_SPECIALFLAGS;
+            filter.ClassFilter_DenyFlags = ZR_CLASS_SPECIALFLAGS;
                         
             // Allow admin classes if admin.
-            filter[ClassFilter_DenyFlags] -= ZRIsClientAdmin(client) ? ZR_CLASS_FLAG_ADMIN_ONLY : 0;
+            filter.ClassFilter_DenyFlags -= ZRIsClientAdmin(client) ? ZR_CLASS_FLAG_ADMIN_ONLY : 0;
             
             // Specify client for checking group permissions.
-            filter[ClassFilter_Client] = client;
+            filter.ClassFilter_Client = client;
             
             // Get classes
             // -----------
@@ -353,7 +353,7 @@ ClassOnClientInfected(client, bool:motherzombie = false)
     new classindex = ClassGetActiveIndex(client);
     new isadmin;
     new motherindex;
-    new filter[ClassFilter];
+    ClassFilter filter;
     
     decl String:motherzombiesetting[64];
     
@@ -383,13 +383,13 @@ ClassOnClientInfected(client, bool:motherzombie = false)
             // ---------------
             
             // Exclude special class flags.
-            filter[ClassFilter_DenyFlags] = ZR_CLASS_SPECIALFLAGS;
+            filter.ClassFilter_DenyFlags = ZR_CLASS_SPECIALFLAGS;
             
             // Allow admin classes if admin.
-            filter[ClassFilter_DenyFlags] -= isadmin;
+            filter.ClassFilter_DenyFlags -= isadmin;
             
             // Specify client for checking group permissions.
-            filter[ClassFilter_Client] = client;
+            filter.ClassFilter_Client = client;
             
             // Get class
             // ---------
@@ -413,16 +413,16 @@ ClassOnClientInfected(client, bool:motherzombie = false)
             // ---------------
             
             // Exclude special class flags except mother zombies.
-            filter[ClassFilter_DenyFlags] = ZR_CLASS_SPECIALFLAGS - ZR_CLASS_FLAG_MOTHER_ZOMBIE;
+            filter.ClassFilter_DenyFlags = ZR_CLASS_SPECIALFLAGS - ZR_CLASS_FLAG_MOTHER_ZOMBIE;
             
             // Require mother zombie class flag.
-            filter[ClassFilter_RequireFlags] = ZR_CLASS_FLAG_MOTHER_ZOMBIE;
+            filter.ClassFilter_RequireFlags = ZR_CLASS_FLAG_MOTHER_ZOMBIE;
             
             // Allow admin classes if admin.
-            filter[ClassFilter_DenyFlags] -= isadmin;
+            filter.ClassFilter_DenyFlags -= isadmin;
             
             // Specify client for checking group permissions.
-            filter[ClassFilter_Client] = client;
+            filter.ClassFilter_Client = client;
             
             // Get class
             // ---------

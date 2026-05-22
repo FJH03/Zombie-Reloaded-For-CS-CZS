@@ -155,20 +155,20 @@ enum ConfigFile
 /**
  * Data container for each config file.
  */
-enum ConfigData
+enum struct ConfigData
 {
-    bool:               Data_Loaded,                    /** True if config is loaded, false if not. */
-    ConfigStructure:    Data_Structure,                 /** Format of the config */
-    Function:           Data_ReloadFunc,                /** Function to call to reload config. */
-    Handle:             Data_Handle,                    /** Handle of the config file. */
-    String:             Data_Path[PLATFORM_MAX_PATH],   /** Full path to config file. */
-    String:             Data_Alias[CONFIG_MAX_LENGTH],  /** Config file alias, used for client interaction. */
+    bool                Data_Loaded;                    /** True if config is loaded, false if not. */
+    ConfigStructure     Data_Structure;                 /** Format of the config */
+    Function            Data_ReloadFunc;                /** Function to call to reload config. */
+    Handle              Data_Handle;                    /** Handle of the config file. */
+    char                Data_Path[PLATFORM_MAX_PATH];   /** Full path to config file. */
+    char                Data_Alias[CONFIG_MAX_LENGTH];  /** Config file alias, used for client interaction. */
 }
 
 /**
  * Stores all config data.
  */
-new g_ConfigData[ConfigFile][ConfigData];
+ConfigData g_ConfigData[ConfigFile];
 
 /**
  * Stores status of the optional ConfigList plugin.
@@ -181,9 +181,9 @@ new bool:g_ConfigListAvailable = false;
 enum ConfigKvAction
 {
     KvAction_Create,    /** Create a key. */
-    KvAction_KVDelete,  /** Delete a key. */
-    KvAction_KVSet,     /** Modify setting of a key. */
-    KvAction_KVGet,     /** Get setting of a key. */
+    KvAction_Delete,    /** Delete a key. */
+    KvAction_Set,       /** Modify setting of a key. */
+    KvAction_Get,       /** Get setting of a key. */
 }
 
 /**
@@ -312,12 +312,12 @@ ConfigOnLibraryRemoved(const String:name[])
 stock ConfigRegisterConfig(ConfigFile:file, ConfigStructure:structure, const String:alias[] = "")
 {
     // Copy file info to data container.
-    g_ConfigData[file][Data_Loaded] = false;
-    g_ConfigData[file][Data_Structure] = structure;
-    g_ConfigData[file][Data_Handle] = INVALID_HANDLE;
-    g_ConfigData[file][Data_ReloadFunc] = INVALID_FUNCTION;
-    strcopy(g_ConfigData[file][Data_Path], PLATFORM_MAX_PATH, "");
-    strcopy(g_ConfigData[file][Data_Alias], CONFIG_MAX_LENGTH, alias);
+    g_ConfigData[file].Data_Loaded = false;
+    g_ConfigData[file].Data_Structure = structure;
+    g_ConfigData[file].Data_Handle = INVALID_HANDLE;
+    g_ConfigData[file].Data_ReloadFunc = INVALID_FUNCTION;
+    strcopy(g_ConfigData[file].Data_Path, PLATFORM_MAX_PATH, "");
+    strcopy(g_ConfigData[file].Data_Alias, CONFIG_MAX_LENGTH, alias);
 }
 
 /**
@@ -329,7 +329,7 @@ stock ConfigRegisterConfig(ConfigFile:file, ConfigStructure:structure, const Str
 stock ConfigSetConfigLoaded(ConfigFile:config, bool:loaded)
 {
     // Set load state.
-    g_ConfigData[config][Data_Loaded] = loaded;
+    g_ConfigData[config].Data_Loaded = loaded;
 }
 
 /**
@@ -341,7 +341,7 @@ stock ConfigSetConfigLoaded(ConfigFile:config, bool:loaded)
 stock ConfigSetConfigStructure(ConfigFile:config, ConfigStructure:structure)
 {
     // Set load state.
-    g_ConfigData[config][Data_Structure] = structure;
+    g_ConfigData[config].Data_Structure = structure;
 }
 
 /**
@@ -353,7 +353,7 @@ stock ConfigSetConfigStructure(ConfigFile:config, ConfigStructure:structure)
 stock ConfigSetConfigReloadFunc(ConfigFile:config, Function:reloadfunc)
 {
     // Set reload function.
-    g_ConfigData[config][Data_ReloadFunc] = reloadfunc;
+    g_ConfigData[config].Data_ReloadFunc = reloadfunc;
 }
 
 /**
@@ -365,7 +365,7 @@ stock ConfigSetConfigReloadFunc(ConfigFile:config, Function:reloadfunc)
 stock ConfigSetConfigHandle(ConfigFile:config, Handle:file)
 {
     // Set file handle.
-    g_ConfigData[config][Data_Handle] = file;
+    g_ConfigData[config].Data_Handle = file;
 }
 
 /**
@@ -377,7 +377,7 @@ stock ConfigSetConfigHandle(ConfigFile:config, Handle:file)
 stock ConfigSetConfigPath(ConfigFile:config, const String:path[])
 {
     // Set config file path.
-    strcopy(g_ConfigData[config][Data_Path], PLATFORM_MAX_PATH, path);
+    strcopy(g_ConfigData[config].Data_Path, PLATFORM_MAX_PATH, path);
 }
 
 /**
@@ -389,7 +389,7 @@ stock ConfigSetConfigPath(ConfigFile:config, const String:path[])
 stock ConfigSetConfigAlias(ConfigFile:config, const String:alias[])
 {
     // Set config alias.
-    strcopy(g_ConfigData[config][Data_Alias], CONFIG_MAX_LENGTH, alias);
+    strcopy(g_ConfigData[config].Data_Alias, CONFIG_MAX_LENGTH, alias);
 }
 
 /**
@@ -401,7 +401,7 @@ stock ConfigSetConfigAlias(ConfigFile:config, const String:alias[])
 stock bool:ConfigIsConfigLoaded(ConfigFile:config)
 {
     // Return load status.
-    return g_ConfigData[config][Data_Loaded];
+    return g_ConfigData[config].Data_Loaded;
 }
 
 /**
@@ -413,7 +413,7 @@ stock bool:ConfigIsConfigLoaded(ConfigFile:config)
 stock ConfigStructure:ConfigGetConfigStructure(ConfigFile:config)
 {
     // Return load status.
-    return g_ConfigData[config][Data_Structure];
+    return g_ConfigData[config].Data_Structure;
 }
 
 /**
@@ -425,7 +425,7 @@ stock ConfigStructure:ConfigGetConfigStructure(ConfigFile:config)
 stock Function:ConfigGetConfigReloadFunc(ConfigFile:config)
 {
     // Return load status.
-    return g_ConfigData[config][Data_ReloadFunc];
+    return g_ConfigData[config].Data_ReloadFunc;
 }
 
 /**
@@ -437,7 +437,7 @@ stock Function:ConfigGetConfigReloadFunc(ConfigFile:config)
 stock Handle:ConfigGetConfigHandle(ConfigFile:config)
 {
     // Return load status.
-    return g_ConfigData[config][Data_Handle];
+    return g_ConfigData[config].Data_Handle;
 }
 
 /**
@@ -448,7 +448,7 @@ stock Handle:ConfigGetConfigHandle(ConfigFile:config)
 stock ConfigGetConfigPath(ConfigFile:config, String:path[], maxlen)
 {
     // Copy path to return string.
-    strcopy(path, maxlen, g_ConfigData[config][Data_Path]);
+    strcopy(path, maxlen, g_ConfigData[config].Data_Path);
 }
 
 /**
@@ -459,7 +459,7 @@ stock ConfigGetConfigPath(ConfigFile:config, String:path[], maxlen)
 stock ConfigGetConfigAlias(ConfigFile:config, String:alias[], maxlen)
 {
     // Copy alias to return string.
-    strcopy(alias, maxlen, g_ConfigData[config][Data_Alias]);
+    strcopy(alias, maxlen, g_ConfigData[config].Data_Alias);
 }
 
 /**

@@ -70,11 +70,11 @@ enum ParamModes
 /**
  * Structure for storing a key/value pair.
  */
-enum ParamParseResult
+enum struct ParamParseResult
 {
-    bool:Param_IsFlag,                      /** Specifies whether it's a flag or not. */
-    String:Param_Name[PARAM_NAME_MAXLEN],   /** Key or flag name. */
-    String:Param_Value[PARAM_VALUE_MAXLEN]  /** Value. Only used if a key. */
+    bool Param_IsFlag;                      /** Specifies whether it's a flag or not. */
+    char Param_Name[PARAM_NAME_MAXLEN];     /** Key or flag name. */
+    char Param_Value[PARAM_VALUE_MAXLEN];   /** Value. Only used if a key. */
 }
 
 
@@ -99,7 +99,7 @@ enum ParamParseResult
  *                      occoured.
  * @return              Number of keys parsed.
  */
-stock ParamParseString(buffer[][ParamParseResult], maxlen, String:paramString[], &err = 0, &errPos = -1)
+stock ParamParseString(ParamParseResult[] buffer, maxlen, String:paramString[], &err = 0, &errPos = -1)
 {
     /*
      *  VALIDATION OF INPUT AND BUFFERS
@@ -130,7 +130,7 @@ stock ParamParseString(buffer[][ParamParseResult], maxlen, String:paramString[],
      */
     
     // Get raw string length.
-    new rawlen = sizeof(paramString);
+    new rawlen = strlen(paramString) + 1;
     
     // Initialize. Expect the start to be a key or a flag.
     new ParamModes:mode = ParamMode_TypeCheck;
@@ -197,10 +197,10 @@ stock ParamParseString(buffer[][ParamParseResult], maxlen, String:paramString[],
                 StrExtract(value, sizeof(value), paramString, strpos, endpos);
                 
                 // Copy flag to destination buffer.
-                strcopy(buffer[paramcount][Param_Name], PARAM_NAME_MAXLEN, value);
+                strcopy(buffer[paramcount].Param_Name, PARAM_NAME_MAXLEN, value);
                 
                 // Set flag type.
-                buffer[paramcount][Param_IsFlag] = true;
+                buffer[paramcount].Param_IsFlag = true;
                 
                 // Increment parameter counter.
                 paramcount++;
@@ -217,10 +217,10 @@ stock ParamParseString(buffer[][ParamParseResult], maxlen, String:paramString[],
                 StrExtract(value, sizeof(value), paramString, strpos, endpos);
                 
                 // Copy key name to destination buffer.
-                strcopy(buffer[paramcount][Param_Name], PARAM_NAME_MAXLEN, value);
+                strcopy(buffer[paramcount].Param_Name, PARAM_NAME_MAXLEN, value);
                 
                 // Make sure flag type is not set.
-                buffer[paramcount][Param_IsFlag] = false;
+                buffer[paramcount].Param_IsFlag = false;
                 
                 // Note: Do not increment parameter counter until the
                 //       entire key/value pair is parsed.
@@ -325,10 +325,10 @@ stock ParamParseString(buffer[][ParamParseResult], maxlen, String:paramString[],
                     StrUnescape(value);
                     
                     // Copy value string to destination buffer.
-                    strcopy(buffer[paramcount][Param_Value], PARAM_VALUE_MAXLEN, value);
+                    strcopy(buffer[paramcount].Param_Value, PARAM_VALUE_MAXLEN, value);
                     
                     // Make sure flag type is not set.
-                    buffer[paramcount][Param_IsFlag] = false;
+                    buffer[paramcount].Param_IsFlag = false;
                     
                     // Increment parameter counter.
                     paramcount++;
@@ -361,20 +361,20 @@ stock ParamParseString(buffer[][ParamParseResult], maxlen, String:paramString[],
  *                          not (default).
  * @return                  Index of the key if found, -1 otherwise.
  */
-stock ParamFindKey(const params[][ParamParseResult], maxlen, const String:key[], bool:caseSensitive = false)
+stock ParamFindKey(const ParamParseResult[] params, maxlen, const String:key[], bool:caseSensitive = false)
 {
     // Loop through all parameters.
     for (new index = 0; index < maxlen; index++)
     {
         // Check parameter type.
-        if (params[index][Param_IsFlag])
+        if (params[index].Param_IsFlag)
         {
             // It's a flag type, skip index.
             continue;
         }
         
         // Match key name.
-        if (StrEqual(params[index][Param_Name], key, caseSensitive))
+        if (StrEqual(params[index].Param_Name, key, caseSensitive))
         {
             // Key found, return the key index.
             return index;
@@ -394,20 +394,20 @@ stock ParamFindKey(const params[][ParamParseResult], maxlen, const String:key[],
  *                          not (default).
  * @return                  True flag is found, false otherwise.
  */
-stock bool:ParamHasFlag(const params[][ParamParseResult], maxlen, const String:flag[], bool:caseSensitive = false)
+stock bool:ParamHasFlag(const ParamParseResult[] params, maxlen, const String:flag[], bool:caseSensitive = false)
 {
     // Loop through all parameters.
     for (new index = 0; index < maxlen; index++)
     {
         // Check parameter type.
-        if (!params[index][Param_IsFlag])
+        if (!params[index].Param_IsFlag)
         {
             // It's a key type, skip index.
             continue;
         }
         
         // Match flag name.
-        if (StrEqual(params[index][Param_Name], flag, caseSensitive))
+        if (StrEqual(params[index].Param_Name, flag, caseSensitive))
         {
             // Flag found.
             return true;
@@ -435,7 +435,7 @@ stock bool:ParamHasFlag(const params[][ParamParseResult], maxlen, const String:f
  */
 stock ParamFindEndPos(const String:paramString[], startPos = 0)
 {
-    new rawlen = sizeof(paramString);
+    new rawlen = strlen(paramString) + 1;
     
     // Validate string length.
     if (rawlen == 0)
@@ -468,7 +468,7 @@ stock ParamFindEndPos(const String:paramString[], startPos = 0)
  */
 stock ParamFindStartPos(const String:paramString[], startPos = 0)
 {
-    new rawlen = sizeof(paramString);
+    new rawlen = strlen(paramString) + 1;
     
     // Validate string length.
     if (rawlen == 0)
@@ -524,7 +524,7 @@ stock StrExtract(String:buffer[], maxlen, const String:source[], startpos, endpo
  */
 stock StrUnescape(String:str[])
 {
-    new len = sizeof(str);
+    new len = strlen(str) + 1;
     
     ReplaceString(str, len, "\\n", "\n");
     ReplaceString(str, len, "\\r", "\r");

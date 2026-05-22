@@ -106,7 +106,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     new flags;
     
     // Team.
-    new team = ClassData[classindex][Class_Team];
+    new team = ClassData[classindex].Class_Team;
     if (team < ZR_CLASS_TEAM_MIN || team > ZR_CLASS_TEAM_MAX)
     {
         flags += ZR_CLASS_TEAM;
@@ -117,7 +117,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Class flags.
-    new class_flags = ClassData[classindex][Class_Flags];
+    new class_flags = ClassData[classindex].Class_Flags;
     if (class_flags < ZR_CLASS_FLAGS_MIN || class_flags > ZR_CLASS_FLAGS_MAX)
     {
         flags += ZR_CLASS_FLAGS;
@@ -130,7 +130,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     // Group.
     decl String:group[64];
     group[0] = 0;
-    if (strcopy(group, sizeof(group), ClassData[classindex][Class_Group]) > 0)
+    if (strcopy(group, sizeof(group), ClassData[classindex].Class_Group) > 0)
     {
         // Check if the group exist.
         if (FindAdmGroup(group) == INVALID_GROUP_ID)
@@ -146,7 +146,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     // Name.
     decl String:name[64];
     name[0] = 0;
-    if (strcopy(name, sizeof(name), ClassData[classindex][Class_Name]) < ZR_CLASS_NAME_MIN)
+    if (strcopy(name, sizeof(name), ClassData[classindex].Class_Name) < ZR_CLASS_NAME_MIN)
     {
         flags += ZR_CLASS_NAME;
         if (logErrors)
@@ -171,7 +171,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Description.
-    if (strlen(ClassData[classindex][Class_Description]) < ZR_CLASS_DESCRIPTION_MIN)
+    if (strlen(ClassData[classindex].Class_Description) < ZR_CLASS_DESCRIPTION_MIN)
     {
         flags += ZR_CLASS_DESCRIPTION;
         if (logErrors)
@@ -182,7 +182,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     
     // Model path.
     decl String:model_path[PLATFORM_MAX_PATH];
-    if (strcopy(model_path, sizeof(model_path), ClassData[classindex][Class_ModelPath]) == 0)
+    if (strcopy(model_path, sizeof(model_path), ClassData[classindex].Class_ModelPath) == 0)
     {
         flags += ZR_CLASS_MODEL_PATH;
         if (logErrors)
@@ -214,7 +214,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Model skin index.
-    new model_skin_index = ClassData[classindex][Class_ModelSkinIndex];
+    new model_skin_index = ClassData[classindex].Class_ModelSkinIndex;
     if (model_skin_index < ZR_CLASS_MODEL_SKIN_INDEX_MIN)
     {
         flags += ZR_CLASS_MODEL_SKIN_INDEX;
@@ -225,7 +225,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Alpha, initial.
-    new alpha_initial = ClassData[classindex][Class_AlphaInitial];
+    new alpha_initial = ClassData[classindex].Class_AlphaInitial;
     if (!(alpha_initial >= ZR_CLASS_ALPHA_INITIAL_MIN && alpha_initial <= ZR_CLASS_ALPHA_INITIAL_MAX))
     {
         flags += ZR_CLASS_ALPHA_INITIAL;
@@ -236,7 +236,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Alpha, damaged.
-    new alpha_damaged = ClassData[classindex][Class_AlphaDamaged];
+    new alpha_damaged = ClassData[classindex].Class_AlphaDamaged;
     if (!(alpha_damaged >= ZR_CLASS_ALPHA_DAMAGED_MIN && alpha_damaged <= ZR_CLASS_ALPHA_DAMAGED_MAX))
     {
         flags += ZR_CLASS_ALPHA_DAMAGED;
@@ -247,7 +247,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Alpha, damage.
-    new alpha_damage = ClassData[classindex][Class_AlphaDamage];
+    new alpha_damage = ClassData[classindex].Class_AlphaDamage;
     if (!(alpha_damage >= ZR_CLASS_ALPHA_DAMAGE_MIN && alpha_damage <= ZR_CLASS_ALPHA_DAMAGE_MAX))
     {
         flags += ZR_CLASS_ALPHA_DAMAGE;
@@ -260,7 +260,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     // Overlay path.
     decl String:overlay_path[PLATFORM_MAX_PATH];
     decl String:overlay[PLATFORM_MAX_PATH];
-    if (strcopy(overlay_path, sizeof(overlay_path), ClassData[classindex][Class_OverlayPath]) > 0)
+    if (strcopy(overlay_path, sizeof(overlay_path), ClassData[classindex].Class_OverlayPath) > 0)
     {
         // Check if the file exists.
         Format(overlay, sizeof(overlay), "materials/%s.vmt", overlay_path);
@@ -275,7 +275,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Field of view.
-    new fov = ClassData[classindex][Class_Fov];
+    new fov = ClassData[classindex].Class_Fov;
     if (!(fov >= ZR_CLASS_FOV_MIN && fov <= ZR_CLASS_FOV_MAX))
     {
         flags += ZR_CLASS_FOV;
@@ -286,7 +286,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Napalm time.
-    new Float:napalm_time = ClassData[classindex][Class_NapalmTime];
+    new Float:napalm_time = ClassData[classindex].Class_NapalmTime;
     if (!(napalm_time >= ZR_CLASS_NAPALM_TIME_MIN && napalm_time <= ZR_CLASS_NAPALM_TIME_MAX))
     {
         flags += ZR_CLASS_NAPALM_TIME;
@@ -297,7 +297,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Immunity mode.
-    new ImmunityMode:immunityMode = ClassData[classindex][Class_ImmunityMode];
+    new ImmunityMode:immunityMode = ClassData[classindex].Class_ImmunityMode;
     if (immunityMode == Immunity_Invalid)
     {
         flags += ZR_CLASS_IMMUNITY_MODE;
@@ -308,7 +308,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Immunity amount.
-    new immunityAmount = ClassData[classindex][Class_ImmunityAmount];
+    new immunityAmount = ClassData[classindex].Class_ImmunityAmount;
     if (!ImmunityIsValidAmount(immunityMode, immunityAmount))
     {
         flags += ZR_CLASS_IMMUNITY_AMOUNT;
@@ -319,7 +319,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Immunity cooldown.
-    new immunityCooldown = ClassData[classindex][Class_ImmunityCooldown];
+    new immunityCooldown = ClassData[classindex].Class_ImmunityCooldown;
     if (!ImmunityIsValidCooldown(immunityMode, immunityCooldown))
     {
         flags += ZR_CLASS_IMMUNITY_COOLDOWN;
@@ -330,7 +330,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Health.
-    new health = ClassData[classindex][Class_Health];
+    new health = ClassData[classindex].Class_Health;
     if (!(health >= ZR_CLASS_HEALTH_MIN && health <= ZR_CLASS_HEALTH_MAX))
     {
         flags += ZR_CLASS_HEALTH;
@@ -341,7 +341,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Health regen interval.
-    new Float:regen_interval = ClassData[classindex][Class_HealthRegenInterval];
+    new Float:regen_interval = ClassData[classindex].Class_HealthRegenInterval;
     if (!(regen_interval >= ZR_CLASS_REGEN_INTERVAL_MIN && regen_interval <= ZR_CLASS_REGEN_INTERVAL_MAX))
     {
         flags += ZR_CLASS_HEALTH_REGEN_INTERVAL;
@@ -352,7 +352,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Health regen amount.
-    new regen_amount = ClassData[classindex][Class_HealthRegenAmount];
+    new regen_amount = ClassData[classindex].Class_HealthRegenAmount;
     if (!(regen_amount >= ZR_CLASS_REGEN_AMOUNT_MIN && regen_amount <= ZR_CLASS_REGEN_AMOUNT_MAX))
     {
         flags += ZR_CLASS_HEALTH_REGEN_AMOUNT;
@@ -363,7 +363,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Health infect gain.
-    new infect_gain = ClassData[classindex][Class_HealthInfectGain];
+    new infect_gain = ClassData[classindex].Class_HealthInfectGain;
     if (!(infect_gain >= ZR_CLASS_HEALTH_INFECT_GAIN_MIN && infect_gain <= ZR_CLASS_HEALTH_INFECT_GAIN_MAX))
     {
         flags += ZR_CLASS_HEALTH_INFECT_GAIN;
@@ -374,7 +374,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Kill bonus.
-    new kill_bonus = ClassData[classindex][Class_KillBonus];
+    new kill_bonus = ClassData[classindex].Class_KillBonus;
     if (!(kill_bonus >= ZR_CLASS_KILL_BONUS_MIN && kill_bonus <= ZR_CLASS_KILL_BONUS_MAX))
     {
         flags += ZR_CLASS_KILL_BONUS;
@@ -385,7 +385,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Speed.
-    new Float:speed = ClassData[classindex][Class_Speed];
+    new Float:speed = ClassData[classindex].Class_Speed;
     new Float:min;
     new Float:max;
     switch (ClassSpeedMethod)
@@ -411,7 +411,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Knockback.
-    new Float:knockback = ClassData[classindex][Class_KnockBack];
+    new Float:knockback = ClassData[classindex].Class_KnockBack;
     if (!(knockback >= ZR_CLASS_KNOCKBACK_MIN && knockback <= ZR_CLASS_KNOCKBACK_MAX))
     {
         flags += ZR_CLASS_KNOCKBACK;
@@ -422,7 +422,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Jump height.
-    new Float:jump_height = ClassData[classindex][Class_JumpHeight];
+    new Float:jump_height = ClassData[classindex].Class_JumpHeight;
     if (!(jump_height >= ZR_CLASS_JUMP_HEIGHT_MIN && jump_height <= ZR_CLASS_JUMP_HEIGHT_MAX))
     {
         flags += ZR_CLASS_JUMP_HEIGHT;
@@ -433,7 +433,7 @@ stock ClassValidateAttributes(classindex, bool:logErrors = false)
     }
     
     // Jump distance.
-    new Float:jump_distance = ClassData[classindex][Class_JumpDistance];
+    new Float:jump_distance = ClassData[classindex].Class_JumpDistance;
     if (!(jump_distance >= ZR_CLASS_JUMP_DISTANCE_MIN && jump_distance <= ZR_CLASS_JUMP_DISTANCE_MAX))
     {
         flags += ZR_CLASS_JUMP_DISTANCE;
@@ -495,11 +495,11 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
     }
     
     // Overlay.
-    if (!StrEqual(attributes[ClassEdit_OverlayPath], "nochange", false))
+    if (!StrEqual(String:attributes[ClassEdit_OverlayPath], "nochange", false))
     {
         decl String:overlay_path[PLATFORM_MAX_PATH];
         decl String:overlay[PLATFORM_MAX_PATH];
-        if (strcopy(overlay_path, sizeof(overlay_path), attributes[ClassEdit_OverlayPath]) > 0)
+        if (strcopy(overlay_path, sizeof(overlay_path), String:attributes[ClassEdit_OverlayPath]) > 0)
         {
             // Check if the file exists.
             Format(overlay, sizeof(overlay), "materials/%s.vmt", overlay_path);
@@ -546,7 +546,7 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
     {
         if (!(healthRegenInterval >= ZR_CLASS_REGEN_INTERVAL_MIN && healthRegenInterval <= ZR_CLASS_REGEN_INTERVAL_MAX))
         {
-            flags += ZR_CLASS_REGEN_INTERVAL;
+            flags += ZR_CLASS_HEALTH_REGEN_INTERVAL;
         }
     }
     
@@ -556,7 +556,7 @@ stock ClassValidateEditableAttributes(attributes[ClassEditableAttributes])
     {
         if (!(healthRegenAmount >= ZR_CLASS_REGEN_AMOUNT_MIN && healthRegenAmount <= ZR_CLASS_REGEN_AMOUNT_MAX))
         {
-            flags += ZR_CLASS_REGEN_AMOUNT;
+            flags += ZR_CLASS_HEALTH_REGEN_AMOUNT;
         }
     }
     
@@ -676,21 +676,21 @@ stock bool:ClassTeamCompare(index, teamid, cachetype = ZR_CLASS_CACHE_MODIFIED)
     {
         case ZR_CLASS_CACHE_ORIGINAL:
         {
-            if (ClassData[index][Class_Team] == teamid)
+            if (ClassData[index].Class_Team == teamid)
             {
                 return true;
             }
         }
         case ZR_CLASS_CACHE_MODIFIED:
         {
-            if (ClassDataCache[index][Class_Team] == teamid)
+            if (ClassDataCache[index].Class_Team == teamid)
             {
                 return true;
             }
         }
         case ZR_CLASS_CACHE_PLAYER:
         {
-            if (ClassPlayerCache[index][Class_Team] == teamid)
+            if (ClassPlayerCache[index].Class_Team == teamid)
             {
                 return true;
             }
@@ -823,16 +823,16 @@ stock Float:ClassGetAttributeMultiplier(client, ClassMultipliers:attribute)
  *                      used index will be used as a client index.
  * @return              True if passed, false otherwise.
  */
-stock bool:ClassFilterMatch(index, filter[ClassFilter], cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock bool:ClassFilterMatch(index , ClassFilter filter, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     // Check if the class is disabled and the enabled attribute is NOT ignored.
-    if (!filter[ClassFilter_IgnoreEnabled] && !ClassIsEnabled(index, cachetype))
+    if (!filter.ClassFilter_IgnoreEnabled && !ClassIsEnabled(index, cachetype))
     {
         return false;
     }
     
     // Check if class flags pass the flag filter.
-    if (!ClassFlagFilterMatch(index, filter[ClassFilter_RequireFlags], filter[ClassFilter_DenyFlags], cachetype))
+    if (!ClassFlagFilterMatch(index, filter.ClassFilter_RequireFlags, filter.ClassFilter_DenyFlags, cachetype))
     {
         return false;
     }
@@ -843,7 +843,7 @@ stock bool:ClassFilterMatch(index, filter[ClassFilter], cachetype = ZR_CLASS_CAC
     ClassGetGroup(index, groupname, sizeof(groupname), cachetype);
     
     // Check if a client is specified in the filter.
-    new client = filter[ClassFilter_Client];
+    new client = filter.ClassFilter_Client;
     if (ZRIsClientValid(client))
     {
         // Check if a group is set on the class.
@@ -934,7 +934,7 @@ stock bool:ClassFlagFilterMatch(index, require, deny, cachetype)
  * @param filter    Optional. Filter to use on classes.
  * @return          True if allowed, false otherwise.
  */
-bool:ClassAllowSelection(client, team = -1, filter[ClassFilter] = ClassNoFilter)
+bool:ClassAllowSelection(client, team = -1, ClassFilter filter = ClassNoFilter)
 {
     // Get selection settings.
     new bool:zombie = GetConVarBool(g_hCvarsList[CVAR_CLASSES_ZOMBIE_SELECT]);
@@ -1001,7 +1001,7 @@ bool:ClassAllowSelection(client, team = -1, filter[ClassFilter] = ClassNoFilter)
  * @return  True on success. False on error or if no classes were added or
  *          found.
  */
-stock bool:ClassAddToArray(Handle:array, teamfilter = -1, filter[ClassFilter] = ClassNoFilter, cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock bool:ClassAddToArray(Handle:array, teamfilter = -1, ClassFilter filter = ClassNoFilter, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     // Validate the array.
     if (array == INVALID_HANDLE)
@@ -1072,7 +1072,7 @@ stock bool:ClassAddToArray(Handle:array, teamfilter = -1, filter[ClassFilter] = 
  *                          class data.
  * @return  Number of total classes or classes in the specified team.
  */
-stock ClassCountTeam(teamfilter = -1, filter[ClassFilter] = ClassNoFilter, cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock ClassCountTeam(teamfilter = -1, ClassFilter filter = ClassNoFilter, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     // Check if there are no classes.
     if (ClassCount == 0)
@@ -1128,7 +1128,7 @@ stock ClassCountTeam(teamfilter = -1, filter[ClassFilter] = ClassNoFilter, cache
  *                          class data.
  * @return  The class index if successful, or -1 on error.
  */
-stock ClassGetRandomClass(teamfilter = -1, filter[ClassFilter] = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock ClassGetRandomClass(teamfilter = -1, ClassFilter filter = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     new Handle:classarray;
     new arraycount;
@@ -1172,7 +1172,7 @@ stock ClassGetRandomClass(teamfilter = -1, filter[ClassFilter] = ClassNoSpecialC
  * @return  The first class index, or the first class index with the specified
  *          team ID. -1 on error.
  */
-stock ClassGetFirstClass(teamfilter = -1, filter[ClassFilter] = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock ClassGetFirstClass(teamfilter = -1, ClassFilter filter = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     // Check if there are no classes.
     if (ClassCount == 0)
@@ -1224,7 +1224,7 @@ stock ClassGetFirstClass(teamfilter = -1, filter[ClassFilter] = ClassNoSpecialCl
  *                          class data.
  * @return  The first default class index. -1 on error.
  */
-stock ClassGetDefaultClass(teamid, filter[ClassFilter] = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock ClassGetDefaultClass(teamid, ClassFilter filter = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     new Handle:classarray;
     new arraycount;
@@ -1275,7 +1275,7 @@ stock ClassGetDefaultClass(teamid, filter[ClassFilter] = ClassNoSpecialClasses, 
  *          successful. -1 on critical errors. Otherwise it will try to fall
  *          back on the first class in the specified team.
  */
-stock ClassGetDefaultSpawnClass(teamid, filter[ClassFilter] = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
+stock ClassGetDefaultSpawnClass(teamid, ClassFilter filter = ClassNoSpecialClasses, cachetype = ZR_CLASS_CACHE_MODIFIED)
 {
     decl String:classname[64];
     new classindex;

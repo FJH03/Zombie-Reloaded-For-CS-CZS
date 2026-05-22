@@ -29,34 +29,9 @@
 
 /**
  * Empty attribute structure with all settings set to be ignored.
+ * Initialized at runtime in VolClassEditInit().
  */
-new VolEmptyAttributes[ClassEditableAttributes] = {
-    -1,                             /** ModelSkinIndex */
-    -1,                             /** AlphaInitial */
-    -1,                             /** AlphaDamaged */
-    -1,                             /** AlphaDamage */
-    
-    "nochange",                     /** OverlayPath */
-    -1,                             /** Nvgs */
-    -1,                             /** Fov */
-    
-    -1,                             /** HasNapalm */
-    -1.0,                           /** NapalmTime */
-    Immunity_Invalid,               /** ImmunityMode */
-    -1,                             /** ImmunityAmount */
-    -1,                             /** ImmunityCooldown */
-    -1,                             /** NoFallDamage */
-    
-    -1.0,                           /** RegenInterval */
-    -1,                             /** RegenAmount */
-    -1,                             /** InfectGain */
-    -1,                             /** KillBonus */
-    
-    -1.0,                           /** Speed */
-    ZR_CLASS_KNOCKBACK_IGNORE,      /** KnockBack */
-    -1.0,                           /** JumpHeight */
-    -1.0,                           /** JumpDistance */
-};
+int VolEmptyAttributes[ClassEditableAttributes];
 
 /**
  * List of class edit modes.
@@ -70,19 +45,19 @@ enum VolClassEditMode
 /**
  * Data structure for class editor.
  */
-enum VolTypeClassEdit
+enum struct VolTypeClassEdit
 {
-    bool:VolClassEdit_InUse,
+    bool VolClassEdit_InUse;
     
-    VolClassEditMode:VolClassEdit_Mode,
-    String:VolClassEdit_ClassName[VOL_CLASSNAME_SIZE],
-    VolClassEdit_ClassData[ClassEditableAttributes]
+    VolClassEditMode VolClassEdit_Mode;
+    char VolClassEdit_ClassName[VOL_CLASSNAME_SIZE];
+    int VolClassEdit_ClassData[ClassEditableAttributes];
 }
 
 /**
  * Class editor data.
  */
-new VolClassEditData[ZR_VOLUMES_MAX][VolTypeClassEdit];
+VolTypeClassEdit VolClassEditData[ZR_VOLUMES_MAX];
 
 /**
  * The player's selected class index. Used by volumes in "name" mode.
@@ -97,7 +72,7 @@ new VolClassEditSelectedClass[MAXPLAYERS + 1];
  */
 bool:VolClassEditInUse(dataIndex)
 {
-    return VolClassEditData[dataIndex][VolClassEdit_InUse];
+    return VolClassEditData[dataIndex].VolClassEdit_InUse;
 }
 
 /**
@@ -114,7 +89,7 @@ VolClassEditGetFreeIndex()
         if (!VolClassEditInUse(dataindex))
         {
             // Mark as in use.
-            VolClassEditData[dataindex][VolClassEdit_InUse] = true;
+            VolClassEditData[dataindex].VolClassEdit_InUse = true;
             
             // Unused index found.
             return dataindex;
@@ -127,11 +102,11 @@ VolClassEditGetFreeIndex()
 
 VolClassEditReset(dataIndex)
 {
-    VolClassEditData[dataIndex][VolClassEdit_InUse] = false;
-    VolClassEditData[dataIndex][VolClassEdit_Mode] = ClassEditMode_Attributes;
+    VolClassEditData[dataIndex].VolClassEdit_InUse = false;
+    VolClassEditData[dataIndex].VolClassEdit_Mode = ClassEditMode_Attributes;
     
-    strcopy(VolClassEditData[dataIndex][VolClassEdit_ClassName], 64, "");
-    VolClassEditData[dataIndex][VolClassEdit_ClassData] = VolEmptyAttributes;
+    strcopy(VolClassEditData[dataIndex].VolClassEdit_ClassName, 64, "");
+    VolClassEditData[dataIndex].VolClassEdit_ClassData = VolEmptyAttributes;
 }
 
 /**
@@ -139,6 +114,17 @@ VolClassEditReset(dataIndex)
  */
 VolClassEditInit()
 {
+    // Initialize VolEmptyAttributes with default "ignore" values.
+    for (new i = 0; i < sizeof(VolEmptyAttributes); i++)
+    {
+        VolEmptyAttributes[i] = -1;
+    }
+    // Set string field to "nochange".
+    strcopy(String:VolEmptyAttributes[ClassEdit_OverlayPath], PLATFORM_MAX_PATH, "nochange");
+    // Set special enum values.
+    VolEmptyAttributes[ClassEdit_ImmunityMode] = _:Immunity_Invalid;
+    VolEmptyAttributes[ClassEdit_KnockBack] = ZR_CLASS_KNOCKBACK_IGNORE;
+    
     for (new dataindex = 0; dataindex < ZR_VOLUMES_MAX; dataindex++)
     {
         VolClassEditReset(dataindex);
@@ -343,7 +329,7 @@ VolClassEditDumpData(dataIndex, String:buffer[], maxlen)
     
     decl String:linebuffer[128];
     decl String:valuebuffer[256];
-    new cache[VolTypeClassEdit];
+    VolTypeClassEdit cache;
     new cellswritten;
     
     // Validate index.
@@ -358,15 +344,15 @@ VolClassEditDumpData(dataIndex, String:buffer[], maxlen)
     // Cache data.
     cache = VolClassEditData[dataIndex];
     
-    VolClassEditModeToString(cache[VolClassEdit_Mode], valuebuffer, sizeof(valuebuffer));
+    VolClassEditModeToString(cache.VolClassEdit_Mode, valuebuffer, sizeof(valuebuffer));
     Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Mode:", valuebuffer);
     cellswritten += StrCat(buffer, maxlen, linebuffer);
     
-    switch (cache[VolClassEdit_Mode])
+    switch (cache.VolClassEdit_Mode)
     {
         case ClassEditMode_Name:
         {
-            Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Class Name:", cache[VolClassEdit_ClassName]);
+            Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Class Name:", cache.VolClassEdit_ClassName);
             cellswritten += StrCat(buffer, maxlen, linebuffer);
         }
         case ClassEditMode_Attributes:
@@ -403,7 +389,7 @@ VolClassEditDumpData(dataIndex, String:buffer[], maxlen)
             Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Napalm time:", valuebuffer);
             cellswritten += StrCat(buffer, maxlen, linebuffer);
             
-            ImmunityModeToString(VolClassEditData[dataIndex][ClassEdit_ImmunityMode], valuebuffer, sizeof(valuebuffer));
+            ImmunityModeToString(VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_ImmunityMode], valuebuffer, sizeof(valuebuffer));
             Format(linebuffer, sizeof(linebuffer), CLASSEDIT_DUMP_FORMAT, "Immunity mode:", valuebuffer);
             cellswritten += StrCat(buffer, maxlen, linebuffer);
             
@@ -471,12 +457,12 @@ VolClassEditDumpData(dataIndex, String:buffer[], maxlen)
  */
 VolClassEditApply(client, dataIndex)
 {
-    switch (VolClassEditData[dataIndex][VolClassEdit_Mode])
+    switch (VolClassEditData[dataIndex].VolClassEdit_Mode)
     {
         case ClassEditMode_Name:
         {
             // Cache volume attributes.
-            new classindex = ClassGetIndex(VolClassEditData[dataIndex][VolClassEdit_ClassName]);
+            new classindex = ClassGetIndex(VolClassEditData[dataIndex].VolClassEdit_ClassName);
             
             // Save player's selected class.
             VolClassEditSelectedClass[client] = ClassGetActiveIndex(client);
@@ -488,7 +474,7 @@ VolClassEditApply(client, dataIndex)
         {
             // Update player's entire cache with attributes from the specified
             // class attributes.
-            VolClassEditUpdateAttributes(client, VolClassEditData[dataIndex][VolClassEdit_ClassData]);
+            VolClassEditUpdateAttributes(client, VolClassEditData[dataIndex].VolClassEdit_ClassData);
         }
     }
     
@@ -507,7 +493,7 @@ VolClassEditRestore(client, dataIndex)
 {
     new classindex = ClassGetActiveIndex(client);
     
-    switch (VolClassEditData[dataIndex][VolClassEdit_Mode])
+    switch (VolClassEditData[dataIndex].VolClassEdit_Mode)
     {
         case ClassEditMode_Name:
         {
@@ -518,7 +504,7 @@ VolClassEditRestore(client, dataIndex)
         case ClassEditMode_Attributes:
         {
             // Restore individual attributes, if specified.
-            VolClassEditRestoreAttributes(client, classindex, VolClassEditData[dataIndex][VolClassEdit_ClassData]);
+            VolClassEditRestoreAttributes(client, classindex, VolClassEditData[dataIndex].VolClassEdit_ClassData);
         }
     }
     
@@ -537,7 +523,7 @@ VolClassEditRestore(client, dataIndex)
  */
 VolClassEditOnPlayerEnter(client, volumeIndex)
 {
-    VolClassEditApply(client, Volumes[volumeIndex][Vol_DataIndex]);
+    VolClassEditApply(client, Volumes[volumeIndex].Vol_DataIndex);
 }
 
 /**
@@ -548,7 +534,7 @@ VolClassEditOnPlayerEnter(client, volumeIndex)
  */
 VolClassEditOnPlayerLeave(client, volumeIndex)
 {
-    VolClassEditRestore(client, Volumes[volumeIndex][Vol_DataIndex]);
+    VolClassEditRestore(client, Volumes[volumeIndex].Vol_DataIndex);
 }
 
 /**
@@ -628,7 +614,7 @@ VolClassEditIntToString(dataIndex, ClassEditableAttributes:attribute, String:buf
     new intVal;
     new String:strVal[8];
     
-    intVal = VolClassEditData[dataIndex][VolClassEdit_ClassData][attribute];
+    intVal = VolClassEditData[dataIndex].VolClassEdit_ClassData[attribute];
     
     // Check if the attribute is marked as ignored.
     if (intVal == -1)
@@ -657,7 +643,7 @@ VolClassEditFloatToString(dataIndex, ClassEditableAttributes:attribute, String:b
     new Float:floatVal;
     new String:strVal[8];
     
-    floatVal = Float:VolClassEditData[dataIndex][VolClassEdit_ClassData][attribute];
+    floatVal = Float:VolClassEditData[dataIndex].VolClassEdit_ClassData[attribute];
     
     // Check if the attribute is marked as ignored.
     if (floatVal == minval)
@@ -684,7 +670,7 @@ VolClassEditFloatToString(dataIndex, ClassEditableAttributes:attribute, String:b
 VolClassEditStringToHumanStr(dataIndex, ClassEditableAttributes:attribute, String:buffer[], maxlen)
 {
     decl String:strVal[PLATFORM_MAX_PATH];
-    strcopy(strVal, sizeof(strVal), String:VolClassEditData[dataIndex][VolClassEdit_ClassData][attribute]);
+    strcopy(strVal, sizeof(strVal), String:VolClassEditData[dataIndex].VolClassEdit_ClassData[attribute]);
     
     // Check if the attribute is marked as ignored.
     if (StrEqual(strVal, "nochange", false))
@@ -714,12 +700,12 @@ bool:VolClassEditSetMode(dataIndex, const String:value[])
     
     if (StrEqual(value, "name", false))
     {
-        VolClassEditData[dataIndex][VolClassEdit_Mode] = ClassEditMode_Name;
+        VolClassEditData[dataIndex].VolClassEdit_Mode = ClassEditMode_Name;
         return true;
     }
     else if (StrEqual(value, "attributes", false))
     {
-        VolClassEditData[dataIndex][VolClassEdit_Mode] = ClassEditMode_Attributes;
+        VolClassEditData[dataIndex].VolClassEdit_Mode = ClassEditMode_Attributes;
         return true;
     }
     
@@ -742,7 +728,7 @@ bool:VolClassEditSetName(dataIndex, const String:value[])
         return false;
     }
     
-    strcopy(VolClassEditData[dataIndex][VolClassEdit_ClassName], VOL_CLASSNAME_SIZE, value);
+    strcopy(VolClassEditData[dataIndex].VolClassEdit_ClassName, VOL_CLASSNAME_SIZE, value);
     
     // TODO: Validate name.
     
@@ -766,7 +752,7 @@ bool:VolClassEditSetAlphaInitial(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_AlphaInitial] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_AlphaInitial] = StringToInt(value);
     return true;
 }
 
@@ -787,7 +773,7 @@ bool:VolClassEditSetAlphaDamaged(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_AlphaDamaged] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_AlphaDamaged] = StringToInt(value);
     return true;
 }
 
@@ -808,7 +794,7 @@ bool:VolClassEditSetAlphaDamage(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_AlphaDamage] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_AlphaDamage] = StringToInt(value);
     return true;
 }
 
@@ -829,7 +815,7 @@ bool:VolClassEditSetOverlayPath(dataIndex, const String:value[])
         return false;
     }
     
-    strcopy(VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_OverlayPath], PLATFORM_MAX_PATH, value);
+    strcopy(String:VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_OverlayPath], PLATFORM_MAX_PATH, value);
     return true;
 }
 
@@ -850,7 +836,7 @@ bool:VolClassEditSetNvgs(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_Nvgs] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_Nvgs] = StringToInt(value);
     return true;
 }
 
@@ -871,7 +857,7 @@ bool:VolClassEditSetFov(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_Fov] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_Fov] = StringToInt(value);
     return true;
 }
 
@@ -892,7 +878,7 @@ bool:VolClassEditSetHasNapalm(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_HasNapalm] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_HasNapalm] = StringToInt(value);
     return true;
 }
 
@@ -913,7 +899,7 @@ bool:VolClassEditSetNapalmTime(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_NapalmTime] = StringToFloat(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_NapalmTime] = StringToFloat(value);
     return true;
 }
 
@@ -935,7 +921,7 @@ bool:VolClassEditSetImmunityMode(dataIndex, const String:value[])
     }
     
     new ImmunityMode:mode = ImmunityStringToMode(value);
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityMode] = mode;
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_ImmunityMode] = mode;
     return true;
 }
 
@@ -956,7 +942,7 @@ bool:VolClassEditSetImmunityAmount(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityAmount] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_ImmunityAmount] = StringToInt(value);
     return true;
 }
 
@@ -977,7 +963,7 @@ bool:VolClassEditSetImmunityCooldown(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_ImmunityCooldown] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_ImmunityCooldown] = StringToInt(value);
     return true;
 }
 
@@ -998,7 +984,7 @@ bool:VolClassEditSetNoFallDamage(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_NoFallDamage] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_NoFallDamage] = StringToInt(value);
     return true;
 }
 
@@ -1019,7 +1005,7 @@ bool:VolClassEditSetRegenInterval(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_RegenInterval] = StringToFloat(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_RegenInterval] = StringToFloat(value);
     return true;
 }
 
@@ -1040,7 +1026,7 @@ bool:VolClassEditSetRegenAmount(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_RegenAmount] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_RegenAmount] = StringToInt(value);
     return true;
 }
 
@@ -1061,7 +1047,7 @@ bool:VolClassEditSetInfectGain(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_InfectGain] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_InfectGain] = StringToInt(value);
     return true;
 }
 
@@ -1082,7 +1068,7 @@ bool:VolClassEditSetKillBonus(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_KillBonus] = StringToInt(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_KillBonus] = StringToInt(value);
     return true;
 }
 
@@ -1103,7 +1089,7 @@ bool:VolClassEditSetSpeed(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_Speed] = StringToFloat(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_Speed] = StringToFloat(value);
     return true;
 }
 
@@ -1124,7 +1110,7 @@ bool:VolClassEditSetKnockBack(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_KnockBack] = StringToFloat(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_KnockBack] = StringToFloat(value);
     return true;
 }
 
@@ -1145,7 +1131,7 @@ bool:VolClassEditSetJumpHeight(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_JumpHeight] = StringToFloat(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_JumpHeight] = StringToFloat(value);
     return true;
 }
 
@@ -1166,7 +1152,7 @@ bool:VolClassEditSetJumpDistance(dataIndex, const String:value[])
         return false;
     }
     
-    VolClassEditData[dataIndex][VolClassEdit_ClassData][ClassEdit_JumpDistance] = StringToFloat(value);
+    VolClassEditData[dataIndex].VolClassEdit_ClassData[ClassEdit_JumpDistance] = StringToFloat(value);
     return true;
 }
 
@@ -1187,126 +1173,126 @@ VolClassEditUpdateAttributes(client, const attributes[])
     // Alpha initial.
     if (attributes[ClassEdit_AlphaInitial] > -1)
     {
-        ClassPlayerCache[client][Class_AlphaInitial] = attributes[ClassEdit_AlphaInitial];
+        ClassPlayerCache[client].Class_AlphaInitial = attributes[ClassEdit_AlphaInitial];
         numChanges++;
     }
     
     // Alpha damaged.
     if (attributes[ClassEdit_AlphaDamaged] > -1)
     {
-        ClassPlayerCache[client][Class_AlphaDamaged] = attributes[ClassEdit_AlphaDamaged];
+        ClassPlayerCache[client].Class_AlphaDamaged = attributes[ClassEdit_AlphaDamaged];
         numChanges++;
     }
     
     // Alpha damage.
     if (attributes[ClassEdit_AlphaDamage] > -1)
     {
-        ClassPlayerCache[client][Class_AlphaDamage] = attributes[ClassEdit_AlphaDamage];
+        ClassPlayerCache[client].Class_AlphaDamage = attributes[ClassEdit_AlphaDamage];
         numChanges++;
     }
     
     // Overlay path.
-    if (!StrEqual(attributes[ClassEdit_OverlayPath], "nochange"))
+    if (!StrEqual(String:attributes[ClassEdit_OverlayPath], "nochange"))
     {
-        strcopy(ClassPlayerCache[client][Class_OverlayPath], PLATFORM_MAX_PATH, attributes[ClassEdit_OverlayPath]);
+        strcopy(ClassPlayerCache[client].Class_OverlayPath, PLATFORM_MAX_PATH, String:attributes[ClassEdit_OverlayPath]);
         numChanges++;
     }
     
     // Nvgs.
     if (attributes[ClassEdit_Nvgs] > -1)
     {
-        ClassPlayerCache[client][Class_Nvgs] = bool:attributes[ClassEdit_Nvgs];
+        ClassPlayerCache[client].Class_Nvgs = attributes[ClassEdit_Nvgs];
         numChanges++;
     }
     
     // Napalm time.
     if (attributes[ClassEdit_NapalmTime] > -1.0)
     {
-        ClassPlayerCache[client][Class_NapalmTime] = attributes[ClassEdit_NapalmTime];
+        ClassPlayerCache[client].Class_NapalmTime = attributes[ClassEdit_NapalmTime];
         numChanges++;
     }
     
     // Immunity mode.
     if (attributes[ClassEdit_ImmunityMode] != Immunity_Invalid)
     {
-        ClassPlayerCache[client][Class_ImmunityMode] = attributes[ClassEdit_ImmunityMode];
+        ClassPlayerCache[client].Class_ImmunityMode = attributes[ClassEdit_ImmunityMode];
         numChanges++;
     }
     
     // Immunity amount.
     if (attributes[ClassEdit_ImmunityAmount] > -1)
     {
-        ClassPlayerCache[client][Class_ImmunityAmount] = attributes[ClassEdit_ImmunityAmount];
+        ClassPlayerCache[client].Class_ImmunityAmount = attributes[ClassEdit_ImmunityAmount];
         numChanges++;
     }
     
     // Immunity cooldown.
     if (attributes[ClassEdit_ImmunityCooldown] > -1)
     {
-        ClassPlayerCache[client][Class_ImmunityCooldown] = attributes[ClassEdit_ImmunityCooldown];
+        ClassPlayerCache[client].Class_ImmunityCooldown = attributes[ClassEdit_ImmunityCooldown];
         numChanges++;
     }
     
     // No fall damage.
     if (attributes[ClassEdit_NoFallDamage] > -1)
     {
-        ClassPlayerCache[client][Class_NoFallDamage] = bool:attributes[ClassEdit_NoFallDamage];
+        ClassPlayerCache[client].Class_NoFallDamage = attributes[ClassEdit_NoFallDamage];
         numChanges++;
     }
     
     // Health regen interval.
     if (attributes[ClassEdit_RegenInterval] > -1.0)
     {
-        ClassPlayerCache[client][Class_HealthRegenInterval] = attributes[ClassEdit_RegenInterval];
+        ClassPlayerCache[client].Class_HealthRegenInterval = attributes[ClassEdit_RegenInterval];
         numChanges++;
     }
     
     // Health regen amount.
     if (attributes[ClassEdit_RegenAmount] > -1)
     {
-        ClassPlayerCache[client][Class_HealthRegenAmount] = attributes[ClassEdit_RegenAmount];
+        ClassPlayerCache[client].Class_HealthRegenAmount = attributes[ClassEdit_RegenAmount];
         numChanges++;
     }
     
     // Infect gain.
     if (attributes[ClassEdit_InfectGain] > -1)
     {
-        ClassPlayerCache[client][Class_HealthInfectGain] = attributes[ClassEdit_InfectGain];
+        ClassPlayerCache[client].Class_HealthInfectGain = attributes[ClassEdit_InfectGain];
         numChanges++;
     }
     
     // Kill bonus.
     if (attributes[ClassEdit_KillBonus] > -1)
     {
-        ClassPlayerCache[client][Class_KillBonus] = attributes[ClassEdit_KillBonus];
+        ClassPlayerCache[client].Class_KillBonus = attributes[ClassEdit_KillBonus];
         numChanges++;
     }
     
     // Speed.
     if (attributes[ClassEdit_Speed] > -1.0)
     {
-        ClassPlayerCache[client][Class_Speed] = attributes[ClassEdit_Speed];
+        ClassPlayerCache[client].Class_Speed = attributes[ClassEdit_Speed];
         numChanges++;
     }
     
     // Knock back.
     if (attributes[ClassEdit_KnockBack] > ZR_CLASS_KNOCKBACK_IGNORE)
     {
-        ClassPlayerCache[client][Class_KnockBack] = attributes[ClassEdit_KnockBack];
+        ClassPlayerCache[client].Class_KnockBack = attributes[ClassEdit_KnockBack];
         numChanges++;
     }
     
     // Jump height.
     if (attributes[ClassEdit_JumpHeight] > -1.0)
     {
-        ClassPlayerCache[client][Class_JumpHeight] = attributes[ClassEdit_JumpHeight];
+        ClassPlayerCache[client].Class_JumpHeight = attributes[ClassEdit_JumpHeight];
         numChanges++;
     }
     
     // Jump distance.
     if (attributes[ClassEdit_JumpDistance] > -1.0)
     {
-        ClassPlayerCache[client][Class_JumpDistance] = attributes[ClassEdit_JumpDistance];
+        ClassPlayerCache[client].Class_JumpDistance = attributes[ClassEdit_JumpDistance];
         numChanges++;
     }
     
@@ -1330,121 +1316,121 @@ VolClassEditRestoreAttributes(client, classindex, const attributes[])
     // Alpha initial.
     if (attributes[ClassEdit_AlphaInitial] > -1)
     {
-        ClassPlayerCache[client][Class_AlphaInitial] = ClassGetAlphaInitial(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_AlphaInitial = ClassGetAlphaInitial(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Alpha damaged.
     if (attributes[ClassEdit_AlphaDamaged] > -1)
     {
-        ClassPlayerCache[client][Class_AlphaDamaged] = ClassGetAlphaDamaged(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_AlphaDamaged = ClassGetAlphaDamaged(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Alpha damage.
     if (attributes[ClassEdit_AlphaDamage] > -1)
     {
-        ClassPlayerCache[client][Class_AlphaDamage] = ClassGetAlphaDamage(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_AlphaDamage = ClassGetAlphaDamage(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Overlay path.
-    if (!StrEqual(attributes[ClassEdit_OverlayPath], "nochange"))
+    if (!StrEqual(String:attributes[ClassEdit_OverlayPath], "nochange"))
     {
         decl String:path[PLATFORM_MAX_PATH];
         ClassGetOverlayPath(classindex, path, sizeof(path), ZR_CLASS_CACHE_MODIFIED);
-        strcopy(ClassPlayerCache[client][Class_OverlayPath], PLATFORM_MAX_PATH, path);
+        strcopy(ClassPlayerCache[client].Class_OverlayPath, PLATFORM_MAX_PATH, path);
         numChanges++;
     }
     
     // Nvgs.
     if (attributes[ClassEdit_Nvgs] > -1)
     {
-        ClassPlayerCache[client][Class_Nvgs] = ClassGetNvgs(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_Nvgs = ClassGetNvgs(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Napalm time.
     if (attributes[ClassEdit_NapalmTime] > -1.0)
     {
-        ClassPlayerCache[client][Class_NapalmTime] = ClassGetNapalmTime(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_NapalmTime = ClassGetNapalmTime(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Immunity mode.
     if (attributes[ClassEdit_ImmunityMode] != Immunity_Invalid)
     {
-        ClassPlayerCache[client][Class_ImmunityMode] = ClassGetImmunityMode(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_ImmunityMode = ClassGetImmunityMode(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Immunity amount.
     if (attributes[ClassEdit_ImmunityAmount] > -1.0)
     {
-        ClassPlayerCache[client][Class_ImmunityAmount] = ClassGetImmunityAmount(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_ImmunityAmount = ClassGetImmunityAmount(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // No fall damage.
     if (attributes[ClassEdit_NoFallDamage] > -1)
     {
-        ClassPlayerCache[client][Class_NoFallDamage] = ClassGetNoFallDamage(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_NoFallDamage = ClassGetNoFallDamage(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Health regen interval.
     if (attributes[ClassEdit_RegenInterval] > -1.0)
     {
-        ClassPlayerCache[client][Class_HealthRegenInterval] = ClassGetHealthRegenInterval(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_HealthRegenInterval = ClassGetHealthRegenInterval(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Health regen amount.
     if (attributes[ClassEdit_RegenAmount] > -1)
     {
-        ClassPlayerCache[client][Class_HealthRegenAmount] = ClassGetHealthRegenAmount(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_HealthRegenAmount = ClassGetHealthRegenAmount(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Infect gain.
     if (attributes[ClassEdit_InfectGain] > -1)
     {
-        ClassPlayerCache[client][Class_HealthInfectGain] = ClassGetHealthInfectGain(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_HealthInfectGain = ClassGetHealthInfectGain(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Kill bonus.
     if (attributes[ClassEdit_KillBonus] > -1)
     {
-        ClassPlayerCache[client][Class_KillBonus] = ClassGetKillBonus(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_KillBonus = ClassGetKillBonus(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Speed.
     if (attributes[ClassEdit_Speed] > -1.0)
     {
-        ClassPlayerCache[client][Class_Speed] = ClassGetSpeed(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_Speed = ClassGetSpeed(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Knock back.
     if (attributes[ClassEdit_KnockBack] > ZR_CLASS_KNOCKBACK_IGNORE)
     {
-        ClassPlayerCache[client][Class_KnockBack] = ClassGetKnockback(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_KnockBack = ClassGetKnockback(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Jump height.
     if (attributes[ClassEdit_JumpHeight] > -1.0)
     {
-        ClassPlayerCache[client][Class_JumpHeight] = ClassGetJumpHeight(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_JumpHeight = ClassGetJumpHeight(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     
     // Jump distance.
     if (attributes[ClassEdit_JumpDistance] > -1.0)
     {
-        ClassPlayerCache[client][Class_JumpDistance] = ClassGetJumpDistance(classindex, ZR_CLASS_CACHE_MODIFIED);
+        ClassPlayerCache[client].Class_JumpDistance = ClassGetJumpDistance(classindex, ZR_CLASS_CACHE_MODIFIED);
         numChanges++;
     }
     

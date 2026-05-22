@@ -491,7 +491,7 @@ stock WeaponsEntityToDisplay(const String:entityname[], String:display[], displa
     decl String:weaponentity[WEAPONS_MAX_LENGTH];
     
     // Initialize string to null.
-    strcopy(display, sizeof(displaymaxlen), "");
+    strcopy(display, displaymaxlen, "");
     
     // x = Array index.
     new size = GetArraySize(arrayWeapons);
@@ -755,7 +755,7 @@ stock WeaponsGetClientWeapons(client, weapons[WeaponsSlot])
 stock WeaponsGetDeployedWeaponIndex(client)
 {
     // Return the client's active weapon.
-    return GetEntDataEnt2(client, offsActiveWeapon);
+    return GetEntDataEnt2(client, g_iToolsActiveWeapon);
 }
 
 /**
@@ -776,7 +776,7 @@ stock WeaponsSlot:WeaponsGetDeployedWeaponSlot(client)
     // If client has no deployed weapon, then stop.
     if (deployedweapon == -1)
     {
-        return Type_Invalid;
+        return Slot_Invalid;
     }
     
     // x = weapon slot.
@@ -788,7 +788,7 @@ stock WeaponsSlot:WeaponsGetDeployedWeaponSlot(client)
         }
     }
     
-    return Type_Invalid;
+    return Slot_Invalid;
 }
 
 /**
