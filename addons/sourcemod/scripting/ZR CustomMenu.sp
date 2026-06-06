@@ -4,7 +4,7 @@
 #include <cstrike>
 #include <zombiereloaded>
 
-#define VERSION "1.52"
+#define VERSION "1.6"
 
 int g_iRoundsPlayed[MAXPLAYERS + 1]; //已经玩的回合数
 int showHud[MAXPLAYERS + 1] = 1;
@@ -172,7 +172,10 @@ public Action Timer_RepeatExc(Handle timer)
 				float AvgDamage = GetClientAvgDamage(client); // 获取回合均伤
 				
 				SetHudTextParams(0.15, 0.85, 1.001, 0, 255, 0, 255);
-				ShowHudText(client, -1, "欢迎来到『CNSR™-生存感染服』");
+				if (showHud[client]) {
+					ShowHudText(client, -1, "欢迎来到『CNSR™-生存感染服』");
+				}
+
 				char Line[256];
 				if (showHud[client]) {
 					Format(Line, sizeof(Line), "击杀K %d	死亡D %d	K/D %.1f	爆头率HS %.1f	回合均伤ADR %.1f\n人类 %d VS %d 丧尸", g_killCount[client], GetClientDeaths(client), GetClientKDRate(client), (float(g_iHeadShotCount[client]) / float(g_killCount[client])) * 100, AvgDamage, GetAliveHumanCount(), GetAliveZombieCount());
