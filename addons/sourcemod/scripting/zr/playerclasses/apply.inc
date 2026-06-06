@@ -191,6 +191,23 @@ bool:ClassApplyModel(client, classindex, cachetype = ZR_CLASS_CACHE_PLAYER)
     SetEntityModel(client, modelpath);
     SetEntProp(client, Prop_Send, "m_nSkin", skinIndex);
     
+    // Apply arm model from class attributes.
+    decl String:armmodel[PLATFORM_MAX_PATH];
+    ClassGetArmModel(index, armmodel, sizeof(armmodel), cachetype);
+    
+    if (armmodel[0] != '\0')
+    {
+        if (!IsModelPrecached(armmodel))
+        {
+            PrecacheModel(armmodel);
+        }
+        SetEntPropString(client, Prop_Send, "m_szArmsModel", armmodel);
+    }
+    else
+    {
+        SetEntPropString(client, Prop_Send, "m_szArmsModel", "");
+    }
+    
     return true;
 }
 

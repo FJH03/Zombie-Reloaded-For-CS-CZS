@@ -4,7 +4,6 @@
 #include <sourcemod>
 #include <cstrike>
 #include <zombiereloaded>
-// #include "zr/class.zr"
 
 static int PlayerSex[64] = {0};	//存储回合开始时的玩家性别
 
@@ -12,7 +11,7 @@ public Plugin:myinfo = {
 	name = "[ZR] Sound Complement",
 	author = "[CNSR] FJH_03",
 	description = "<- Description ->",
-	version = "1.51",
+	version = "1.6",
 	url = "<- URL ->"
 }
 
@@ -149,11 +148,11 @@ public Action:PlayInfectedSound(Handle timer, int client)
 				
 				new randomNum = GetRandomInt(1, 10);
 				if (randomNum > 7) {
-					SetEntityModel(client, "models/player/zh/zh_corpse002.mdl");
-					float tempNum = GetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue");
-					if (tempNum < 1.33)
-						SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", 1.34); 
-					SetEntityHealth(client, 1000);
+					// 改为设置职业，而非手动修改模型/血量/速度
+					int zombieClass = ZR_GetClassByName("zh_corpse002");
+					if (zombieClass != -1) {
+						ZR_SelectClientClass(client, zombieClass, true);
+					}
 				}
 			}
 			else

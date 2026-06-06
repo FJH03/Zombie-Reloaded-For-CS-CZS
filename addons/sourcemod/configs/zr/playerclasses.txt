@@ -69,6 +69,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -113,6 +114,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -157,6 +159,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -201,6 +204,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -246,6 +250,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -290,6 +295,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -334,6 +340,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -379,6 +386,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -423,6 +431,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -467,6 +476,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -511,6 +521,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -555,6 +566,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -599,6 +611,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -643,6 +656,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -688,6 +702,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_zombie.mdl"
         
         // Hud
         "overlay_path"          "overlays/zr/zvision"
@@ -713,6 +728,51 @@
         "knockback"             "2.8"
         "jump_height"           "1.5"
         "jump_distance"         "1.3"
+    }
+    
+    "zh_corpse002"
+    {
+        // General
+        "enabled"               "yes"
+        "team"                  "0"
+        "team_default"          "no"
+        "flags"                 "0"
+        "group"                 ""
+        
+        "name"                  "暗影芭比"
+        "description"           "++HP | +Speed | 女性感染者特殊变异"
+        
+        // Model
+        "model_path"            "models/player/zh/zh_corpse002.mdl"
+        "alpha_initial"         "255"
+        "alpha_damaged"         "255"
+        "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_female_zombie.mdl"
+        
+        // Hud
+        "overlay_path"          "overlays/zr/zvision"
+        "nvgs"                  "yes"
+        "fov"                   "90"
+        
+        // Effects
+        "has_napalm"            "yes"
+        "napalm_time"           "15.0"
+        
+        // Player behaviour
+        "immunity_mode"         "none"
+        "immunity_amount"       "0.0"
+        "no_fall_damage"        "no"
+        
+        "health"                "1000"
+        "health_regen_interval" "0"
+        "health_regen_amount"   "1"
+        "health_infect_gain"    "50"
+        "kill_bonus"            "2"
+        
+        "speed"                 "380"
+        "knockback"             "4"
+        "jump_height"           "1.0"
+        "jump_distance"         "1.0"
     }
     
     // ------------------------------------------
@@ -781,6 +841,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_czy.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -825,6 +886,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_freeman.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -869,6 +931,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_hatsune_miku.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -913,6 +976,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_youxiang.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -957,6 +1021,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_2b.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -1001,6 +1066,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_hecu.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -1045,6 +1111,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_an.mdl"
         
         // Hud
         "overlay_path"          ""
@@ -1089,6 +1156,7 @@
         "alpha_initial"         "255"
         "alpha_damaged"         "255"
         "alpha_damage"          "0"
+        "armmodel"              "models/addons/v_arms/v_arm_viper.mdl"
         
         // Hud
         "overlay_path"          ""

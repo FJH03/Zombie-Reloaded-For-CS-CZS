@@ -339,6 +339,9 @@ ClassOnClientDeath(client)
     // Set client's FOV back to normal.
     ToolsSetClientDefaultFOV(client, 90);
     
+    // Clear arm model.
+    SetEntPropString(client, Prop_Send, "m_szArmsModel", "");
+    
     // Forward event to sub-modules.
     ClassOverlayOnClientDeath(client);
 }

@@ -380,6 +380,40 @@ stock ClassGetModelSkinIndex(index, cachetype = ZR_CLASS_CACHE_PLAYER)
 }
 
 /**
+ * Gets the arm model path from the specified class.
+ *
+ * @param index     Index of the class in a class cache or a client index,
+ *                  depending on the cache type specified.
+ * @param buffer    Destination string buffer.
+ * @param maxlen    Size of buffer.
+ * @param cachetype Optional. Specifies what class cache to read from. Options:
+ *                  ZR_CLASS_CACHE_ORIGINAL - Unchanced class data.
+ *                  ZR_CLASS_CACHE_MODIFIED - Changed/newest class data.
+ *                  ZR_CLASS_CACHE_PLAYER (default) - Player cache. If this one
+ *                  is used, index will be used as a client index.
+ * @return  Number of cells written. -1 on error.
+ */
+stock ClassGetArmModel(index, String:buffer[], maxlen, cachetype = ZR_CLASS_CACHE_PLAYER)
+{
+    switch (cachetype)
+    {
+        case ZR_CLASS_CACHE_ORIGINAL:
+        {
+            return strcopy(buffer, maxlen, ClassData[index].Class_ArmModel);
+        }
+        case ZR_CLASS_CACHE_MODIFIED:
+        {
+            return strcopy(buffer, maxlen, ClassDataCache[index].Class_ArmModel);
+        }
+        case ZR_CLASS_CACHE_PLAYER:
+        {
+            return strcopy(buffer, maxlen, ClassPlayerCache[index].Class_ArmModel);
+        }
+    }
+    return -1;
+}
+
+/**
  * Gets the initial alpha value from the specified class.
  *
  * @param index     Index of the class in a class cache or a client index,

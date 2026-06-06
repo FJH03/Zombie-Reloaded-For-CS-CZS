@@ -48,7 +48,7 @@
     #define ACTION_HANDLED      ZRTools_Handled
 #endif
 
-#define VERSION "3.11"
+#define VERSION "3.12"
 
 // Comment this line to exclude version info command. Enable this if you have
 // the repository and HG installed (Mercurial or TortoiseHG).
@@ -123,8 +123,8 @@
  */
 public Plugin:myinfo =
 {
-    name = "Zombie:Reloaded",
-    author = "Greyscale | Richard Helgeby, fixed syntax by [CNSR] FJH_03",
+    name = "Zombie:Reloaded For CS:CZS",
+    author = "Greyscale | Richard Helgeby, modified by [CNSR] FJH_03",
     description = "Infection/survival style gameplay",
     version = VERSION,
     url = "http://forums.alliedmods.net/forumdisplay.php?f=132"

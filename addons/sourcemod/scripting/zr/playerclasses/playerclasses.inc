@@ -108,6 +108,7 @@
 #define ZR_CLASS_DEFAULT_DESCRIPTION            "Need brains!!! Arrrrggghh!"
 #define ZR_CLASS_DEFAULT_MODEL_PATH             "models/player/zh/zh_zombie003.mdl"
 #define ZR_CLASS_DEFAULT_MODEL_SKIN_INDEX       0
+#define ZR_CLASS_DEFAULT_ARM_MODEL             ""
 #define ZR_CLASS_DEFAULT_ALPHA_INITIAL          255
 #define ZR_CLASS_DEFAULT_ALPHA_DAMAGED          255
 #define ZR_CLASS_DEFAULT_ALPHA_DAMAGE           0
@@ -215,6 +216,7 @@
 #define ZR_CLASS_KNOCKBACK              (1<<27)
 #define ZR_CLASS_JUMP_HEIGHT            (1<<28)
 #define ZR_CLASS_JUMP_DISTANCE          (1<<29)
+#define ZR_CLASS_ARM_MODEL              (1<<30)
 /**
  * @endsection
  */
@@ -253,6 +255,7 @@ enum struct ClassAttributes
     /* Model */
     char Class_ModelPath[PLATFORM_MAX_PATH];
     int Class_ModelSkinIndex;
+    char Class_ArmModel[PLATFORM_MAX_PATH];
     int Class_AlphaInitial;
     int Class_AlphaDamaged;
     int Class_AlphaDamage;
@@ -600,6 +603,10 @@ ClassLoad()
         strcopy(ClassData[ClassCount].Class_ModelPath, PLATFORM_MAX_PATH, model_path);
         
         ClassData[ClassCount].Class_ModelSkinIndex = KvGetNum(kvClassData, "model_skin_index", ZR_CLASS_DEFAULT_MODEL_SKIN_INDEX);
+        
+        KvGetString(kvClassData, "armmodel", model_path, sizeof(model_path), ZR_CLASS_DEFAULT_ARM_MODEL);
+        strcopy(ClassData[ClassCount].Class_ArmModel, PLATFORM_MAX_PATH, model_path);
+        
         ClassData[ClassCount].Class_AlphaInitial = KvGetNum(kvClassData, "alpha_initial", ZR_CLASS_DEFAULT_ALPHA_INITIAL);
         ClassData[ClassCount].Class_AlphaDamaged = KvGetNum(kvClassData, "alpha_damaged", ZR_CLASS_DEFAULT_ALPHA_DAMAGED);
         ClassData[ClassCount].Class_AlphaDamage = KvGetNum(kvClassData, "alpha_damage", ZR_CLASS_DEFAULT_ALPHA_DAMAGE);
@@ -752,6 +759,7 @@ bool:ClassReloadDataCache()
         /* Model */
         strcopy(ClassDataCache[classindex].Class_ModelPath, PLATFORM_MAX_PATH, ClassData[classindex].Class_ModelPath);
         ClassDataCache[classindex].Class_ModelSkinIndex = ClassData[classindex].Class_ModelSkinIndex;
+        strcopy(ClassDataCache[classindex].Class_ArmModel, PLATFORM_MAX_PATH, ClassData[classindex].Class_ArmModel);
         ClassDataCache[classindex].Class_AlphaInitial = ClassData[classindex].Class_AlphaInitial;
         ClassDataCache[classindex].Class_AlphaDamaged = ClassData[classindex].Class_AlphaDamaged;
         ClassDataCache[classindex].Class_AlphaDamage = ClassData[classindex].Class_AlphaDamage;
@@ -819,6 +827,7 @@ bool:ClassReloadPlayerCache(client, classindex, cachetype = ZR_CLASS_CACHE_MODIF
             /* Model */
             strcopy(ClassPlayerCache[client].Class_ModelPath, PLATFORM_MAX_PATH, ClassData[classindex].Class_ModelPath);
             ClassPlayerCache[client].Class_ModelSkinIndex = ClassData[classindex].Class_ModelSkinIndex;
+            strcopy(ClassPlayerCache[client].Class_ArmModel, PLATFORM_MAX_PATH, ClassData[classindex].Class_ArmModel);
             ClassPlayerCache[client].Class_AlphaInitial = ClassData[classindex].Class_AlphaInitial;
             ClassPlayerCache[client].Class_AlphaDamaged = ClassData[classindex].Class_AlphaDamaged;
             ClassPlayerCache[client].Class_AlphaDamage = ClassData[classindex].Class_AlphaDamage;
@@ -861,6 +870,7 @@ bool:ClassReloadPlayerCache(client, classindex, cachetype = ZR_CLASS_CACHE_MODIF
             /* Model */
             strcopy(ClassPlayerCache[client].Class_ModelPath, PLATFORM_MAX_PATH, ClassDataCache[classindex].Class_ModelPath);
             ClassPlayerCache[client].Class_ModelSkinIndex = ClassDataCache[classindex].Class_ModelSkinIndex;
+            strcopy(ClassPlayerCache[client].Class_ArmModel, PLATFORM_MAX_PATH, ClassDataCache[classindex].Class_ArmModel);
             ClassPlayerCache[client].Class_AlphaInitial = ClassDataCache[classindex].Class_AlphaInitial;
             ClassPlayerCache[client].Class_AlphaDamaged = ClassDataCache[classindex].Class_AlphaDamaged;
             ClassPlayerCache[client].Class_AlphaDamage = ClassDataCache[classindex].Class_AlphaDamage;
