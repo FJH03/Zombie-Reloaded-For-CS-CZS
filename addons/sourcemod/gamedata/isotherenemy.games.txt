@@ -1,0 +1,22 @@
+/**
+ * Gamedata for "IsOtherEnemy Always False" plugin.
+ *
+ * CS:S server.dll exports CCSPlayer::IsOtherEnemy(CCSPlayer*) as
+ * "SMGD_IsOtherEnemyByPlayer" on Windows (x64).
+ */
+
+"Games"
+{
+	"cstrike"
+	{
+		"Signatures"
+		{
+			"IsOtherEnemyByPlayer"
+			{
+				"library"	"server"
+				"windows64"	"@SMGD_IsOtherEnemyByPlayer"
+				"linux64"	"@_ZN9CCSPlayer12IsOtherEnemyEPS_"
+			}
+		}
+	}
+}
