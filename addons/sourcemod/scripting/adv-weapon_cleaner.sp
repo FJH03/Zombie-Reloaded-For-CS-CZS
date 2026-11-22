@@ -7,12 +7,18 @@ public Plugin:myinfo =
 	name = "Advanced Weapon Cleaner",
 	author = ".#Zipcore",
 	description = "",
-	version = "1.0",
+	version = "1.0.1",
 	url = "https://gitlab.com/Zipcore/AdvWeaponCleaner"
 };
 
-Handle g_aWeapons = null;
-Handle g_aWeaponDropTimes = null;
+enum struct WatchedWeapon
+{
+	int reference;
+	float dropTime;
+	int lastOwnerSerial;
+}
+
+ArrayList g_Weapons;
 
 ConVar cvRemoveDelay = null;
 ConVar cvRemoveDelay2 = null;
@@ -21,11 +27,11 @@ ConVar cvWeaponsPerPlayer = null;
 ConVar cvPunishment = null;
 ConVar cvKeepMapWeapons = null;
 
-int g_iWeaponsOnGround;
 int g_iWeaponCount[MAXPLAYERS + 1];
 
 public void OnPluginStart()
 {
+	g_Weapons = new ArrayList(sizeof(WatchedWeapon));
 	cvRemoveDelay = CreateConVar("adv_weapon_cleaner_remove_delay", "20.0", "Time to wait before weapon gets removed when a player drops it.");
 	cvRemoveDelay2 = CreateConVar("adv_weapon_cleaner_remove_delay2", "0.1", "Reduced remove delay per weapon.");
 	cvMuchWeapons = CreateConVar("adv_weapon_cleaner_much_weapons", "100", "How much weapons have to be spawned (including each players inventory) before intensifying remove delay.");
@@ -38,18 +44,12 @@ public void OnPluginStart()
 
 public void OnMapStart()
 {
-	if(g_aWeapons == null)
-	{
-		g_aWeapons = CreateArray(1);
-		g_aWeaponDropTimes = CreateArray(1);
-	}
-	else
-	{
-		ClearArray(g_aWeaponDropTimes);
-		ClearArray(g_aWeapons);
-	}
-	
 	CreateTimer(0.1, Timer_Check, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+}
+
+public void OnMapEnd()
+{
+	g_Weapons.Clear();
 }
 
 public void OnEntityCreated(int iEntity, const char[] classname)
@@ -63,19 +63,19 @@ public void OnWeaponSpawned(int iWeapon)
 {
 	SDKUnhook(iWeapon, SDKHook_Spawn, OnWeaponSpawned);
 	
-	int iPrevOwner = HasEntProp(iWeapon, Prop_Send, "m_hPrevOwner") ? GetEntPropEnt(iWeapon, Prop_Send, "m_hPrevOwner") : -1;
-	
+	int iPrevOwner = GetPreviousOwner(iWeapon);
+
 	// Check if a player has spawned the weapon but his weapon slot was full
-	if(iPrevOwner <= 0 && !SetClosestPlayerOwner(iWeapon))
-	{
-		// If keep map weapons don't add this weapon to watchlist
-		if(cvKeepMapWeapons.BoolValue)
-			return;
-	}
-	
-	// Add weapon to watch list
-	PushArrayCell(g_aWeapons, EntIndexToEntRef(iWeapon));
-	PushArrayCell(g_aWeaponDropTimes, GetGameTime());
+	if (iPrevOwner == 0)
+		iPrevOwner = FindClosestPlayerOwner(iWeapon);
+	if (iPrevOwner == 0 && cvKeepMapWeapons.BoolValue)
+		return;
+
+	WatchedWeapon weapon;
+	weapon.reference = EntIndexToEntRef(iWeapon);
+	weapon.dropTime = GetGameTime();
+	weapon.lastOwnerSerial = iPrevOwner > 0 ? GetClientSerial(iPrevOwner) : 0;
+	g_Weapons.PushArray(weapon, sizeof(weapon));
 }
 
 public Action Timer_Check(Handle timer, any data)
@@ -100,7 +100,7 @@ void CheckPlayerWeaponCounts()
 	// Check player spam
 	for(int i = 1; i <= MaxClients; i++)
 	{
-		if(g_iWeaponCount[i] >= cvWeaponsPerPlayer.IntValue)
+		if(g_iWeaponCount[i] > 0 && g_iWeaponCount[i] >= cvWeaponsPerPlayer.IntValue)
 			CleanupWeaponsByPlayer(i);
 	}
 }
@@ -109,65 +109,57 @@ void UpdateWatchList()
 {
 	ResetPlayerWeaponCounts();
 	
-	g_iWeaponsOnGround = 0;
-	
-	for (int i = GetArraySize(g_aWeapons)-1; i > 0; --i)
+	WatchedWeapon weapon;
+	for (int i = g_Weapons.Length - 1; i >= 0; --i)
 	{
-		int iWeapon = EntRefToEntIndex(GetArrayCell(g_aWeapons, i));
-		
-		// Invalid weapon
+		g_Weapons.GetArray(i, weapon, sizeof(weapon));
+		int iWeapon = EntRefToEntIndex(weapon.reference);
+
 		if(iWeapon <= 0 || !HasEntProp(iWeapon, Prop_Send, "m_hOwnerEntity"))
 		{
-			// Remove from array
-			RemoveFromArray(g_aWeapons, i);
-			RemoveFromArray(g_aWeaponDropTimes, i);
-			
+			g_Weapons.Erase(i);
 			continue;
 		}
-		
+
 		int iOwner = GetEntPropEnt(iWeapon, Prop_Send, "m_hOwnerEntity");
-		int iPrevOwner = HasEntProp(iWeapon, Prop_Send, "m_hPrevOwner") ? GetEntPropEnt(iWeapon, Prop_Send, "m_hPrevOwner") : -1;
-		
-		if(iPrevOwner <= 0)
-			iPrevOwner = GetEntProp(iWeapon, Prop_Send, "m_iTeamNum");
-		
-		// Has owner
 		if(iOwner > 0)
 		{
-			// Update drop time
-			SetArrayCell(g_aWeaponDropTimes, i, GetGameTime());
-			
+			weapon.dropTime = GetGameTime();
+			weapon.lastOwnerSerial = IsPlayer(iOwner) ? GetClientSerial(iOwner) : 0;
+			g_Weapons.SetArray(i, weapon, sizeof(weapon));
 			continue;
 		}
-			
-		if(IsPlayer(iPrevOwner))
+
+		int iPrevOwner = GetPreviousOwner(iWeapon);
+		if (iPrevOwner > 0)
+		{
+			weapon.lastOwnerSerial = GetClientSerial(iPrevOwner);
+			g_Weapons.SetArray(i, weapon, sizeof(weapon));
+		}
+		else if (weapon.lastOwnerSerial != 0)
+			iPrevOwner = GetClientFromSerial(weapon.lastOwnerSerial);
+
+		if (IsPlayer(iPrevOwner))
 			g_iWeaponCount[iPrevOwner]++;
-		
-		g_iWeaponsOnGround++;
 	}
 }
 
 void CleanupWeaponsByPlayer(int iClient)
 {
-	for (int i = GetArraySize(g_aWeapons)-1; i > 0; --i)
+	if (!IsClientInGame(iClient))
+		return;
+
+	int serial = GetClientSerial(iClient);
+	WatchedWeapon weapon;
+	for (int i = g_Weapons.Length - 1; i >= 0; --i)
 	{
-		int iWeapon = EntRefToEntIndex(GetArrayCell(g_aWeapons, i));
-		
-		int iOwner = GetEntPropEnt(iWeapon, Prop_Send, "m_hOwnerEntity");
-		int iPrevOwner = HasEntProp(iWeapon, Prop_Send, "m_hPrevOwner") ? GetEntPropEnt(iWeapon, Prop_Send, "m_hPrevOwner") : -1;
-		
-		if(iPrevOwner <= 0)
-			iPrevOwner = GetEntProp(iWeapon, Prop_Send, "m_iTeamNum");
-		
-		// Drop time exceeded, remove entity
-		if(iOwner <= 0 && iPrevOwner == iClient)
+		g_Weapons.GetArray(i, weapon, sizeof(weapon));
+		int iWeapon = EntRefToEntIndex(weapon.reference);
+		if (iWeapon > 0 && weapon.lastOwnerSerial == serial &&
+			GetEntPropEnt(iWeapon, Prop_Send, "m_hOwnerEntity") <= 0)
 		{
-			// Remove from array
-			RemoveFromArray(g_aWeapons, i);
-			RemoveFromArray(g_aWeaponDropTimes, i);
-			
-			// Remove from game
-			RemoveEdict(iWeapon);
+			g_Weapons.Erase(i);
+			RemoveEntity(iWeapon);
 		}
 	}
 	
@@ -182,34 +174,29 @@ void CleanupWeaponsByPlayer(int iClient)
 
 void CleanupWeapons()
 {
-	int iWeaponCount = GetArraySize(g_aWeapons);
+	int iWeaponCount = g_Weapons.Length;
 	
 	float fRemoveDelay = cvRemoveDelay.FloatValue;
 	
 	if(iWeaponCount > cvMuchWeapons.IntValue)
 		fRemoveDelay -= float(iWeaponCount - cvMuchWeapons.IntValue) * cvRemoveDelay2.FloatValue;
 	
-	for (int i = iWeaponCount-1; i > 0; --i)
+	float now = GetGameTime();
+	WatchedWeapon weapon;
+	for (int i = iWeaponCount - 1; i >= 0; --i)
 	{
-		int iWeapon = EntRefToEntIndex(GetArrayCell(g_aWeapons, i));
-		
-		float fTime = GetGameTime();
-		float fDropTime = GetArrayCell(g_aWeaponDropTimes, i);
-		
-		// Drop time exceeded, remove entity
-		if(fDropTime + fRemoveDelay < fTime)
+		g_Weapons.GetArray(i, weapon, sizeof(weapon));
+		int iWeapon = EntRefToEntIndex(weapon.reference);
+		if (iWeapon > 0 && weapon.dropTime + fRemoveDelay < now &&
+			GetEntPropEnt(iWeapon, Prop_Send, "m_hOwnerEntity") <= 0)
 		{
-			// Remove from array
-			RemoveFromArray(g_aWeapons, i);
-			RemoveFromArray(g_aWeaponDropTimes, i);
-			
-			// Remove from game
-			RemoveEdict(iWeapon);
+			g_Weapons.Erase(i);
+			RemoveEntity(iWeapon);
 		}
 	}
 }
 
-int SetClosestPlayerOwner(int iEntity)
+int FindClosestPlayerOwner(int iEntity)
 {
 	float fPos[3];
 	GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", fPos);
@@ -240,16 +227,19 @@ int SetClosestPlayerOwner(int iEntity)
 		}
 	}
 	
-	if(iClient > 0 && fClosestDistance <= 0.0)
-	{
-		SetEntProp(iEntity, Prop_Send, "m_iTeamNum", iClient);
-		return true;
-	}
-	
-	return false;
+	return fClosestDistance == 0.0 ? iClient : 0;
+}
+
+int GetPreviousOwner(int weapon)
+{
+	if (!HasEntProp(weapon, Prop_Send, "m_hPrevOwner"))
+		return 0;
+
+	int client = GetEntPropEnt(weapon, Prop_Send, "m_hPrevOwner");
+	return IsPlayer(client) ? client : 0;
 }
 
 stock bool IsPlayer(int iEntity)
 {
-	return !(iEntity < 1 || iEntity > MaxClients);
+	return iEntity >= 1 && iEntity <= MaxClients && IsClientInGame(iEntity);
 }

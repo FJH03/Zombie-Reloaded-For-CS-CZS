@@ -298,6 +298,23 @@ VolAnticampOnPlayerLeave(client, volumeIndex)
  */
 public Action:Event_VolAnticampTrigger(Handle:timer, any:volumeIndex)
 {
+    if (!VolIsValidIndex(volumeIndex) || !VolIsType(volumeIndex, VolFeature_Anticamp))
+    {
+        return Plugin_Stop;
+    }
+
+    new dataIndex = Volumes[volumeIndex].Vol_DataIndex;
+    if (!VolAnticampValidateIndex(dataIndex) || AnticampData[dataIndex].Anticamp_Timer != timer)
+    {
+        return Plugin_Stop;
+    }
+
+    if (!VolEnabled || !VolInUse(volumeIndex) || !VolIsEnabled(volumeIndex))
+    {
+        AnticampData[dataIndex].Anticamp_Timer = INVALID_HANDLE;
+        return Plugin_Stop;
+    }
+
     // Loop through all players.
     for (new client = 1; client <= MaxClients; client++)
     {
@@ -307,29 +324,13 @@ public Action:Event_VolAnticampTrigger(Handle:timer, any:volumeIndex)
             continue;
         }
         
-        // Check if the volume is unused.
-        if (!VolInUse(volumeIndex))
+        if (VolPlayerInVolume[client][volumeIndex])
         {
-            continue;
-        }
-        
-        // Check if the volume is disabled.
-        if (!VolIsEnabled(volumeIndex))
-        {
-            continue;
-        }
-        
-        // Check if it's a anticamp volume.
-        if (VolIsType(volumeIndex, VolFeature_Anticamp))
-        {
-            // Check if player is in the volume.
-            if (VolPlayerInVolume[client][volumeIndex])
-            {
-                // Apply action.
-                VolAnticampApplyAction(client, Volumes[volumeIndex].Vol_DataIndex, volumeIndex);
-            }
+            VolAnticampApplyAction(client, dataIndex, volumeIndex);
         }
     }
+
+    return Plugin_Continue;
 }
 
 /**

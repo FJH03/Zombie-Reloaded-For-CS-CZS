@@ -5,11 +5,12 @@ public Plugin myinfo =
 	name = "DyHitMarker",						 // DyHitmarker（动态命中反馈）
 	author = "wixess+tongren21+Ducheese, modified by [CNSR] FJH_03",		// code: wixess*+Ducheese; vtf animation: tongren21*
 	description = "Dynamic HitMarker on shoot", 
-	version = "1.65",							  // HM 1.4 → DHM 1.6
+	version = "1.65.1",							  // HM 1.4 → DHM 1.6
 	url = "vk.com/wix_ess"						// Hitmarker 1.4's url
 };
 
 bool bEnabled[MAXPLAYERS + 1];
+Handle g_ClearTimer[MAXPLAYERS + 1];
 
 public OnPluginStart()
 {	
@@ -30,20 +31,33 @@ public OnPluginStart()
 	RegConsoleCmd("dhm", Command_dhm);
 	
 	UnlockConsoleCommandAndConvar("r_screenoverlay");
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client))
+			bEnabled[client] = !IsFakeClient(client);
+	}
 }
 
 public OnClientConnected(int client)
 {
-	if (client > 0 && client <= MaxClients && !IsFakeClient(client))
-	{
-		bEnabled[client] = true;
-	}
+	bEnabled[client] = !IsFakeClient(client);
+}
+
+public void OnClientDisconnect(int client)
+{
+	delete g_ClearTimer[client];
+	bEnabled[client] = false;
 }
 
 public Action Command_dhm(int client, int args)
 {
+	if (client < 1 || !IsClientInGame(client))
+		return Plugin_Handled;
+
 	if (bEnabled[client]) {
 		bEnabled[client] = false;
+		ClearHitmarker(client);
 		PrintToChat(client, "\x01\x03[\x04动态命中反馈\x03]\x01 关闭！")
 	} else {
 		bEnabled[client] = true;
@@ -57,7 +71,7 @@ public Action PlayerHurt(Event event, const char[] name, bool silent)
 {
 	int client = GetClientOfUserId(event.GetInt("attacker"));
 	
-	if (client > 0 && bEnabled[client])
+	if (client > 0 && bEnabled[client] && IsClientInGame(client))
 	{
 		new hitgroup = GetEventInt(event, "hitgroup");
 		
@@ -72,7 +86,7 @@ public Action PlayerHurt(Event event, const char[] name, bool silent)
 			ClientCommand(client, "play *hitmark/hit.mp3");
 		}
 		
-		CreateTimer(0.3, HitmarkerTimer, client);
+		ScheduleHitmarkerClear(client);
 	}
 
 	return Plugin_Continue;
@@ -82,7 +96,7 @@ public Action PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("attacker"));
 	
-	if (client > 0 && bEnabled[client])
+	if (client > 0 && bEnabled[client] && IsClientInGame(client))
 	{	
 		bool headshot = GetEventBool(event, "headshot");
 		
@@ -97,7 +111,7 @@ public Action PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 			ClientCommand(client, "play *hitmark/kill.mp3");
 		}
 		
-		CreateTimer(0.3, HitmarkerTimer, client);
+		ScheduleHitmarkerClear(client);
 	}
 
 	return Plugin_Continue;
@@ -113,12 +127,45 @@ public void OnMapStart()
 	PrecacheDecal("hitmark/kill2.vmt", true);
 }
 
-public Action HitmarkerTimer(Handle Timer, int client)
+public void OnMapEnd()
 {
-	if (IsClientConnected(client)) {
+	for (int client = 1; client <= MaxClients; client++)
+		ClearHitmarker(client);
+}
+
+public void OnPluginEnd()
+{
+	for (int client = 1; client <= MaxClients; client++)
+		ClearHitmarker(client);
+}
+
+void ClearHitmarker(int client)
+{
+	if (g_ClearTimer[client] == null)
+		return;
+
+	delete g_ClearTimer[client];
+	if (IsClientInGame(client))
 		ClientCommand(client, "r_screenoverlay off");
+}
+
+void ScheduleHitmarkerClear(int client)
+{
+	delete g_ClearTimer[client];
+	g_ClearTimer[client] = CreateTimer(0.3, HitmarkerTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+	if (g_ClearTimer[client] == null)
+		ClientCommand(client, "r_screenoverlay off");
+}
+
+public Action HitmarkerTimer(Handle timer, int serial)
+{
+	int client = GetClientFromSerial(serial);
+	if (client > 0 && g_ClearTimer[client] == timer)
+	{
+		g_ClearTimer[client] = null;
+		if (IsClientInGame(client))
+			ClientCommand(client, "r_screenoverlay off");
 	}
-	
 	return Plugin_Stop;
 }
 
@@ -136,4 +183,4 @@ UnlockConsoleCommandAndConvar(const String:command[])
 		flags = GetConVarFlags(cvar);
 		SetConVarFlags(cvar, flags & ~FCVAR_CHEAT);
 	}
-} 
+}

@@ -306,11 +306,9 @@ public Action:ClassModifyCommand(client, argc)
     new ClassDataTypes:attributetype;
     new bool:isgroup;
     new bool:hasmultiplier;
-    new Handle:classlist;
     
     new classindex;
     new bool:listresult;
-    classlist = CreateArray();
     
     // Get command arguments.
     GetCmdArg(1, classname, sizeof(classname));
@@ -342,6 +340,7 @@ public Action:ClassModifyCommand(client, argc)
     
     // Check if classname is a group. Add classes to the class list
     // and use the specified team filter.
+    new Handle:classlist = CreateArray();
     if (StrEqual(classname, "all", false))
     {
         listresult = ClassAddToArray(classlist);
@@ -369,6 +368,7 @@ public Action:ClassModifyCommand(client, argc)
         // Check if the list is valid.
         if (!listresult)
         {
+            CloseHandle(classlist);
             ReplyToCommand(client, "Failed to get classes in the specified team: \"%s\".", classname);
             return Plugin_Handled;
         }
@@ -422,9 +422,12 @@ public Action:ClassModifyCommand(client, argc)
                 }
             }
         }
+        CloseHandle(classlist);
     }
     else
     {
+        CloseHandle(classlist);
+
         // It's a single class.
         classindex = ClassGetIndex(classname);
         

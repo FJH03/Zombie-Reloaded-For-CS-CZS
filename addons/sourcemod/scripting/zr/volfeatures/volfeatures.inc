@@ -189,9 +189,9 @@ VolLoad()
  */
 VolDisable()
 {
-    VolEnabled = false;
     VolStopUpdateTimer();
     VolDisableVolumes();
+    VolEnabled = false;
     
     LogEvent(_, LogType_Normal, LOG_DEBUG, LogModule_Volfeatures, "Disabled", "Volfeatures disabled.");
 }

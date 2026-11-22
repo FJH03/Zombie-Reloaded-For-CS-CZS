@@ -256,7 +256,9 @@ stock bool:ZMarketIsGPLoaded()
         }
         
         // Plugin was found, now return true only if it is running.
-        return (GetPluginStatus(hPlugin) == Plugin_Running);
+        new bool:running = GetPluginStatus(hPlugin) == Plugin_Running;
+        CloseHandle(hPlugins);
+        return running;
     }
     
     // Done iterating, close handle.

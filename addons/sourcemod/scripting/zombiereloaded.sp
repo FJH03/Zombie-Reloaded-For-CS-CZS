@@ -48,7 +48,7 @@
     #define ACTION_HANDLED      ZRTools_Handled
 #endif
 
-#define VERSION "3.12"
+#define VERSION "3.12.1"
 
 // Comment this line to exclude version info command. Enable this if you have
 // the repository and HG installed (Mercurial or TortoiseHG).
@@ -214,6 +214,12 @@ public OnMapStart()
 public OnMapEnd()
 {
     // Forward event to modules.
+    RespawnCancelAllTimers();
+    EventCancelRoundClientTimers();
+    for (new client = 1; client <= MAXPLAYERS; client++)
+    {
+        SpawnProtectStopTimer(client);
+    }
     InfectOnMapEnd();
     VolOnMapEnd();
     VEffectsOnMapEnd();
@@ -327,6 +333,11 @@ public OnClientPostAdminCheck(client)
 public OnClientDisconnect(client)
 {
     // Forward event to modules.
+    RespawnCancelTimer(client);
+    EventCancelClientPostTimers(client);
+    SpawnProtectStopTimer(client);
+    ZHPStopTimer(client);
+    ZombieSoundsStopClientTimers(client);
     ClassOnClientDisconnect(client);
     WeaponsOnClientDisconnect(client);
     InfectOnClientDisconnect(client);

@@ -59,20 +59,15 @@ RespawnClientInit(client)
 }
 
 /**
- * Client is spawning into the game.
- * 
- * @param client    The client index.
+ * Cancels the client's pending respawn and clears its handle.
  */
-RespawnOnClientSpawn(client)
+RespawnCancelTimer(client)
 {
-    // If timer is running, kill it.
     if (tRespawn[client] != INVALID_HANDLE)
     {
         KillTimer(tRespawn[client]);
+        tRespawn[client] = INVALID_HANDLE;
     }
-    
-    // Reset timer handle.
-    tRespawn[client] = INVALID_HANDLE;
 }
 
 /**
@@ -89,12 +84,8 @@ RespawnOnClientDeath(client, attacker, const String:weapon[])
         bKilledByWorld[client] = !ZRIsClientValid(attacker);
     }
     
-    // If timer is running, kill it.
-    if (tRespawn[client] != INVALID_HANDLE)
-    {
-        KillTimer(tRespawn[client]);
-    }
-    
+    RespawnCancelTimer(client);
+
     // If player was infected, then stop.
     if (StrEqual(weapon, "zombie_claws_of_death", false))
     {
@@ -110,34 +101,17 @@ RespawnOnClientDeath(client, attacker, const String:weapon[])
     
     // Start respawn timer.
     new Float:delay = GetConVarFloat(g_hCvarsList[CVAR_RESPAWN_DELAY]);
-    tRespawn[client] = CreateTimer(delay, RespawnTimer, client, TIMER_FLAG_NO_MAPCHANGE);
+    tRespawn[client] = CreateTimer(delay, RespawnTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /**
- * The round is ending.
+ * Cancels pending respawns at the end of the round or map.
  */
-RespawnOnRoundEnd()
+RespawnCancelAllTimers()
 {
-    // x = client index.
-    for (new x = 1; x <= MaxClients; x++)
+    for (new client = 1; client <= MAXPLAYERS; client++)
     {
-        // If client isn't in-game, then stop.
-        if (!IsClientInGame(x))
-        {
-            continue;
-        }
-        
-        // If timer isn't currently running, then stop.
-        if (tRespawn[x] == INVALID_HANDLE)
-        {
-            continue;
-        }
-        
-        // Stop timer.
-        KillTimer(tRespawn[x]);
-        
-        // Reset timer handle.
-        tRespawn[x] = INVALID_HANDLE;
+        RespawnCancelTimer(client);
     }
 }
 
@@ -209,11 +183,16 @@ bool:RespawnSpawnClient(client, bool:zombie = false, bool:zombieIfSuicide = fals
  * Timer callback, respawns a player.
  * 
  * @param timer     The timer handle.
- * @param client    The client index.
- */    
-public Action:RespawnTimer(Handle:timer, any:client)
+ * @param serial    The client connection serial.
+ */
+public Action:RespawnTimer(Handle:timer, any:serial)
 {
-    // Reset timer handle.
+    new client = GetClientFromSerial(serial);
+    if (client == 0 || tRespawn[client] != timer)
+    {
+        return;
+    }
+
     tRespawn[client] = INVALID_HANDLE;
     
     // If client isn't in-game, then stop.

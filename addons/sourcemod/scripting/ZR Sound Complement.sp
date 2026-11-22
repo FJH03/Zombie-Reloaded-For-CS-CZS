@@ -5,17 +5,20 @@
 #include <cstrike>
 #include <zombiereloaded>
 
-static int PlayerSex[64] = {0};	//存储回合开始时的玩家性别
+static int PlayerSex[MAXPLAYERS+1];	//存储回合开始时的玩家性别
+static Handle PlayerSexTimer;
+static Handle InfectedSoundTimer[MAXPLAYERS+1];
 
 public Plugin:myinfo = {
 	name = "[ZR] Sound Complement",
 	author = "[CNSR] FJH_03",
 	description = "<- Description ->",
-	version = "1.6",
+	version = "1.6.1",
 	url = "<- URL ->"
 }
 
 bool ConfirmZombieAppear;
+bool RoundActive = true;
 
 
 public OnPluginStart()
@@ -29,13 +32,40 @@ public OnPluginStart()
 
 public void RoundStart(Handle hEvent, char[] chEvent, bool bDontBroadcast)
 {
-	CreateTimer(10.0, GetPlayerSex);
+	ClearRoundSounds();
+	PlayerSexTimer = CreateTimer(10.0, GetPlayerSex, _, TIMER_FLAG_NO_MAPCHANGE);
 	ConfirmZombieAppear = false;
+	RoundActive = true;
 }
 
 public void RoundEnd(Handle hEvent, char[] chEvent, bool bDontBroadcast)
 {
+	ClearRoundSounds();
 	ConfirmZombieAppear = false;
+	RoundActive = false;
+}
+
+public void OnMapEnd()
+{
+	ClearRoundSounds();
+	ConfirmZombieAppear = false;
+	RoundActive = false;
+}
+
+public void OnClientDisconnect(int client)
+{
+	delete InfectedSoundTimer[client];
+	PlayerSex[client] = 0;
+}
+
+void ClearRoundSounds()
+{
+	delete PlayerSexTimer;
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		delete InfectedSoundTimer[client];
+		PlayerSex[client] = 0;
+	}
 }
 
 public OnMapStart(){
@@ -52,7 +82,7 @@ public OnMapStart(){
 	
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {
-	if (IsClient(client, true)) {
+	if (RoundActive && IsAliveClient(client)) {
 		if (ZR_IsClientZombie(client)) {
 			ConfirmZombieAppear = true;
 		}
@@ -68,7 +98,7 @@ public ZombieDeath(Handle:event,const String:name[],bool:dontBroadcast)
 		new client = GetClientOfUserId(client_id);
 		new attacker_id = GetEventInt(event, "attacker")
 		new attacker = GetClientOfUserId(attacker_id);
-		if(client != attacker && GetClientTeam(client) == CS_TEAM_T)	 //排除通过Bot_Kill指令杀死bot的情况
+		if(client > 0 && IsClientInGame(client) && client != attacker && GetClientTeam(client) == CS_TEAM_T)	 //排除通过Bot_Kill指令杀死bot的情况
 		{
 			//PrintToChatAll("僵尸死亡！");
 			decl String:ModelStr[64];
@@ -94,7 +124,7 @@ public ZombieHurt(Handle:event,const String:name[],bool:dontBroadcast)
 {
 	new client_id = GetEventInt(event, "userid")
 	new client = GetClientOfUserId(client_id);
-	if (ZR_IsClientZombie(client))	//当玩家是僵尸时
+	if (client > 0 && IsClientInGame(client) && ZR_IsClientZombie(client))	//当玩家是僵尸时
 	{
 		//PrintToChatAll("僵尸受伤！");
 		decl String:ModelStr[64];
@@ -118,63 +148,61 @@ public HumanInfected(Handle:event,const String:name[],bool:dontBroadcast)
 {
 	new client_id = GetEventInt(event, "userid");
 	new client = GetClientOfUserId(client_id);
-	new team_id = GetEventInt(event, "team")
-	decl String:TeamStr[32];
-	GetTeamName(team_id, TeamStr, sizeof(TeamStr));
-	if(StrEqual(TeamStr, "TERRORIST"))
+	if (client < 1 || !IsClientInGame(client))
+		return;
+
+	delete InfectedSoundTimer[client];
+	if (RoundActive && GetEventInt(event, "team") == CS_TEAM_T)
 	{
-		CreateTimer(0.2, PlayInfectedSound, client);
-	}   	
-}
-
-public Action:PlayInfectedSound(Handle timer, int client)
-{
-	decl String:ModelStr[64];
-	if (IsClient(client, true)) {
-		GetClientModel(client, ModelStr, sizeof(ModelStr));
-		
-		if(IsPlayerAlive(client) && ZR_IsClientZombie(client))
-		{
-			// PrintToChatAll("变僵尸！");
-			// 玩家被感染时播放惨叫声
-			if(PlayerSex[client] == 2)
-			{
-				
-				switch(GetRandomInt(1,2))
-				{
-					case 1: EmitSoundToAll("npc/fast_zombie/human_death_female_01.wav", client, SNDCHAN_VOICE, _, _, 1.0);
-					case 2: EmitSoundToAll("npc/fast_zombie/human_death_female_02.wav", client, SNDCHAN_VOICE, _, _, 1.0);
-				}
-				
-				new randomNum = GetRandomInt(1, 10);
-				if (randomNum > 7) {
-					// 改为设置职业，而非手动修改模型/血量/速度
-					int zombieClass = ZR_GetClassByName("zh_corpse002");
-					if (zombieClass != -1) {
-						ZR_SelectClientClass(client, zombieClass, true);
-					}
-				}
-			}
-			else
-			{
-				EmitSoundToAll("npc/fast_zombie/human_death_01.wav", client, SNDCHAN_VOICE, _, _, 1.0);
-			}
-		}
+		InfectedSoundTimer[client] = CreateTimer(0.2, PlayInfectedSound, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
-	
 }
 
-//检测玩家属性函数
-bool:IsClient(Client, bool:Alive)
+public void PlayInfectedSound(Handle timer, int serial)
 {
-	return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
+	int client = GetClientFromSerial(serial);
+	if (client == 0 || InfectedSoundTimer[client] != timer)
+		return;
+
+	InfectedSoundTimer[client] = null;
+	if (!RoundActive || !IsAliveClient(client) || !ZR_IsClientZombie(client))
+		return;
+
+	// 玩家被感染时播放惨叫声
+	if (PlayerSex[client] != 2)
+	{
+		EmitSoundToAll("npc/fast_zombie/human_death_01.wav", client, SNDCHAN_VOICE, _, _, 1.0);
+		return;
+	}
+
+	switch (GetRandomInt(1, 2))
+	{
+		case 1: EmitSoundToAll("npc/fast_zombie/human_death_female_01.wav", client, SNDCHAN_VOICE, _, _, 1.0);
+		case 2: EmitSoundToAll("npc/fast_zombie/human_death_female_02.wav", client, SNDCHAN_VOICE, _, _, 1.0);
+	}
+
+	if (GetRandomInt(1, 10) > 7)
+	{
+		int zombieClass = ZR_GetClassByName("zh_corpse002");
+		if (zombieClass != -1)
+			ZR_SelectClientClass(client, zombieClass, true);
+	}
 }
 
-public Action:GetPlayerSex(Handle timer)
+bool IsAliveClient(int client)
 {
+	return client > 0 && client <= MaxClients && IsClientInGame(client) && IsPlayerAlive(client);
+}
+
+public void GetPlayerSex(Handle timer)
+{
+	if (PlayerSexTimer != timer)
+		return;
+
+	PlayerSexTimer = null;
 	for(int i = 1; i <= MaxClients; i++) 
 	{
-		if(IsClient(i, true))
+		if(IsAliveClient(i))
 		{
 			decl String:ModelStr[64];
 			GetClientModel(i, ModelStr, sizeof(ModelStr));

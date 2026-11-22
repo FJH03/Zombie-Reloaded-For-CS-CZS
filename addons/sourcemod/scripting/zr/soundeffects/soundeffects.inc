@@ -99,7 +99,7 @@ SEffectsOnClientSpawn(client)
 {
     // Forward event to sub-modules.
     VoiceOnClientSpawn(client);
-    ZombieSoundsOnClientSpawn(client);
+    ZombieSoundsStopClientTimers(client);
 }
 
 /**

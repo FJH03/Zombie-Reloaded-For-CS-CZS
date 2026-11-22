@@ -59,15 +59,6 @@ SpawnProtectOnClientSpawnPost(client)
         return;
     }
     
-    // If timer is currently running, kill it.
-    if (tSpawnProtect[client] != INVALID_HANDLE)
-    {
-        KillTimer(tSpawnProtect[client]);
-    }
-    
-    // Reset timer handle.
-    tSpawnProtect[client] = INVALID_HANDLE;
-    
     // If protect cvar is disabled, then stop.
     new bool:protect = GetConVarBool(g_hCvarsList[CVAR_SPAWNPROTECT]);
     if (!protect)
@@ -83,20 +74,13 @@ SpawnProtectOnClientSpawnPost(client)
 }
 
 /**
- * Client has been killed.
- * 
- * @param client    The client index.
+ * Clears the pending spawn protection timer when this life ends.
  */
-SpawnProtectOnClientDeath(client)
+SpawnProtectStopTimer(client)
 {
-    // If timer is running, kill it.
-    if (tSpawnProtect[client] != INVALID_HANDLE)
-    {
-        KillTimer(tSpawnProtect[client]);
-    }
-    
-    // Reset timer handle.
-    tSpawnProtect[client] = INVALID_HANDLE;
+    ZREndTimer(tSpawnProtect[client]);
+    bInfectImmune[client][INFECT_TYPE_NORMAL] = false;
+    pSpawnProtectTime[client] = 0;
 }
 
 /**
@@ -157,6 +141,8 @@ SpawnProtectStart(client)
         return;
     }
     
+    SpawnProtectStopTimer(client);
+
     // Set spawn protect flag on client.
     bInfectImmune[client][INFECT_TYPE_NORMAL] = true;
     
@@ -175,30 +161,28 @@ SpawnProtectStart(client)
     TranslationPrintHintText(client, "Spawn Protect", pSpawnProtectTime[client]);
     
     // Start repeating timer.
-    tSpawnProtect[client] = CreateTimer(1.0, SpawnProtectTimer, client, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+    tSpawnProtect[client] = CreateTimer(1.0, SpawnProtectTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
 }
 
 /**
  * Timer callback function, countdown for spawn protection.
  * 
  * @param timer     The timer handle.
- * @param client    The client index.
+ * @param serial    The client connection serial.
  */    
-public Action:SpawnProtectTimer(Handle:timer, any:client)
+public Action:SpawnProtectTimer(Handle:timer, any:serial)
 {
-    // If client leaves, then stop timer.
-    if (!IsClientInGame(client))
+    new client = GetClientFromSerial(serial);
+    if (!client || tSpawnProtect[client] != timer)
     {
-        // Reset timer handle.
-        tSpawnProtect[client] = INVALID_HANDLE;
         return Plugin_Stop;
     }
-    
-    // If client has become a zombie, then stop timer.
-    if (!InfectIsClientHuman(client))
+
+    if (!IsClientInGame(client) || !IsPlayerAlive(client) || !InfectIsClientHuman(client))
     {
-        // Reset timer handle.
         tSpawnProtect[client] = INVALID_HANDLE;
+        bInfectImmune[client][INFECT_TYPE_NORMAL] = false;
+        pSpawnProtectTime[client] = 0;
         return Plugin_Stop;
     }
     

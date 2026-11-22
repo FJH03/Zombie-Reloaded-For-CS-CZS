@@ -80,16 +80,17 @@ RagdollOnClientDeath(client)
     
     // Get the delay.
     new Float:dissolvedelay = GetConVarFloat(g_hCvarsList[CVAR_VEFFECTS_RAGDOLL_DELAY]);
+    new ragdollRef = EntIndexToEntRef(ragdoll);
     
     // If the delay is 0 or less, then remove right now.
     if (dissolvedelay <= 0)
     {
-        RagdollTimer(INVALID_HANDLE, ragdoll);
+        RagdollTimer(INVALID_HANDLE, ragdollRef);
         return;
     }
     
     // Create a timer to remove/dissolve ragdoll.
-    CreateTimer(dissolvedelay, RagdollTimer, ragdoll, TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(dissolvedelay, RagdollTimer, ragdollRef, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /**
@@ -122,6 +123,11 @@ RagdollRemove(ragdoll)
     
     // Prep the dissolve entity.
     new dissolver = CreateEntityByName("env_entity_dissolver");
+    if (dissolver == -1)
+    {
+        AcceptEntityInput(ragdoll, "Kill");
+        return;
+    }
     
     // Set the target to the ragdoll.
     DispatchKeyValue(dissolver, "target", targetname);
@@ -142,9 +148,9 @@ RagdollRemove(ragdoll)
  * Timer callback.  Removed a client's ragdoll.
  * 
  * @param timer     The timer handle. 
- * @param ragdoll   The ragdoll index.
+ * @param ragdollRef The ragdoll entity reference.
  */
-public Action:RagdollTimer(Handle:timer, any:ragdoll)
+public Action:RagdollTimer(Handle:timer, any:ragdollRef)
 {
     // If ragdoll removal is disabled, then stop.
     new bool:ragdollremove = GetConVarBool(g_hCvarsList[CVAR_VEFFECTS_RAGDOLL_REMOVE]);
@@ -154,7 +160,8 @@ public Action:RagdollTimer(Handle:timer, any:ragdoll)
     }
     
     // If the ragdoll is already gone, then stop.
-    if (!IsValidEdict(ragdoll))
+    new ragdoll = EntRefToEntIndex(ragdollRef);
+    if (ragdoll == INVALID_ENT_REFERENCE || !IsValidEdict(ragdoll))
     {
         return;
     }

@@ -10,7 +10,7 @@
 new bool:plug_debug = false;
 int Health_Ent[2048+1];
 //Version
-new String:sVersion[5] = "3.3";
+new String:sVersion[] = "3.3.1";
 //Prefix
 new String:sPrefix[256] = "\x01\x03[\x04PropSpawn\x03]\x01";
 
@@ -40,9 +40,6 @@ new bool:bCreditsOnDeath = true;
 
 // Prop Command String
 new String:sPropCommand[256] = "sm_zprops";
-
-//The Menu
-new Handle:zr_public_prop_menu = INVALID_HANDLE;
 
 public Plugin:myinfo =
 {
@@ -274,91 +271,97 @@ public Action:PropCommand(client, args)
 		}
 	}
 	
-	new String:textPath[255];
-	BuildPath(Path_SM, textPath, sizeof(textPath), "configs/zr_public_props.txt");
-	new Handle:kv = CreateKeyValues("Props");
-	FileToKeyValues(kv, textPath);
-	zr_public_prop_menu = CreateMenu(Public_Prop_Menu_Handler);
-	SetMenuTitle(zr_public_prop_menu, "Prop Menu | Credits: %d", iCredits[client]);
-	PopLoop(kv, client);
-	DisplayMenu(zr_public_prop_menu, client, MENU_TIME_FOREVER);
-	
+	OpenPropMenu(client);
 	return Plugin_Handled;
 }
 
-// Make sure you populate the menu, Runs through the keyvalues.
-PopLoop(Handle:kv, client)
+KeyValues LoadPropConfig()
 {
-	if (KvGotoFirstSubKey(kv))
+	char path[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, path, sizeof(path), "configs/zr_public_props.txt");
+	KeyValues kv = new KeyValues("Props");
+	if (!kv.ImportFromFile(path))
 	{
-		do
-		{
-			new String:buffer[256];
-			KvGetSectionName(kv, buffer, sizeof(buffer));
-			new admin = KvGetNum(kv, "adminonly", 0);	//New, Allows for admin only props
-			if(admin == 1)
-			{
-				if(Client_IsAdmin(client))
-				{
-					new String:price[256];
-					KvGetString(kv, "price", price, sizeof(price), "0");
-					new String:MenuItem[256];
-					Format(MenuItem, sizeof(MenuItem), "%s - Price: %s", buffer, price);
-					AddMenuItem(zr_public_prop_menu, buffer, MenuItem);
-				}
-			}
-			else
-			{
-				new String:price[256];
-				KvGetString(kv, "price", price, sizeof(price), "0");
-				new String:MenuItem[256];
-				Format(MenuItem, sizeof(MenuItem), "%s - Price: %s", buffer, price);
-				AddMenuItem(zr_public_prop_menu, buffer, MenuItem);
-			}
-		}
-		while (KvGotoNextKey(kv));
-		CloseHandle(kv);
+		delete kv;
+		LogError("Unable to read prop configuration '%s'.", path);
 	}
+	return kv;
 }
 
-public Public_Prop_Menu_Handler(Handle:menu, MenuAction:action, param1, param2)
+void OpenPropMenu(int client)
 {
-	// Note to self: param1 is client, param2 is choice.
-	if (action == MenuAction_Select)
+	if (!IsClientInGame(client))
+		return;
+
+	KeyValues kv = LoadPropConfig();
+	if (kv == null)
+		return;
+	if (!kv.GotoFirstSubKey())
 	{
-		// Initiate the Prop Spawning using Client and Choice as the parameters.
-		PropSpawn(param1, param2);
-		new String:textPath[255];
-		BuildPath(Path_SM, textPath, sizeof(textPath), "configs/zr_public_props.txt");
-		new Handle:kv = CreateKeyValues("Props");
-		FileToKeyValues(kv, textPath);
-		zr_public_prop_menu = CreateMenu(Public_Prop_Menu_Handler);
-		SetMenuTitle(zr_public_prop_menu, "Prop Menu | Credits: %d", iCredits[param1]);
-		PopLoop(kv, param1);
-		DisplayMenu(zr_public_prop_menu, param1, MENU_TIME_FOREVER);
+		delete kv;
+		return;
 	}
+
+	Menu menu = new Menu(Public_Prop_Menu_Handler);
+	menu.SetTitle("Prop Menu | Credits: %d", iCredits[client]);
+	bool isAdmin = Client_IsAdmin(client);
+	do
+	{
+		if (kv.GetNum("adminonly", 0) == 1 && !isAdmin)
+			continue;
+
+		char prop[256], price[256], item[256];
+		kv.GetSectionName(prop, sizeof(prop));
+		kv.GetString("price", price, sizeof(price), "0");
+		Format(item, sizeof(item), "%s - Price: %s", prop, price);
+		menu.AddItem(prop, item);
+	}
+	while (kv.GotoNextKey());
+	delete kv;
+
+	if (menu.ItemCount == 0)
+		delete menu;
+	else
+		menu.Display(client, MENU_TIME_FOREVER);
 }
 
-// Prop Spawning! This does all the calculations and spawning.
-public PropSpawn(client, param2)
+public int Public_Prop_Menu_Handler(Menu menu, MenuAction action, int param1, int param2)
 {
-	new String:prop_choice[255];
-	
-	GetMenuItem(zr_public_prop_menu, param2, prop_choice, sizeof(prop_choice));
-	
-	new String:name[255];
-	GetClientName(client, name, sizeof(name));
-	
-	decl String:modelname[255];
-	new Price,Health;
-	new String:file[255];
-	BuildPath(Path_SM, file, 255, "configs/zr_public_props.txt");
-	new Handle:kv = CreateKeyValues("Props");
-	FileToKeyValues(kv, file);
-	KvJumpToKey(kv, prop_choice);
-	KvGetString(kv, "model", modelname, sizeof(modelname),"");
-	Price = KvGetNum(kv, "price", 0);
-	Health = KvGetNum(kv, "health", 0);
+	if (action == MenuAction_End)
+		delete menu;
+	else if (action == MenuAction_Select && IsClientInGame(param1))
+	{
+		PropSpawn(menu, param1, param2);
+		OpenPropMenu(param1);
+	}
+	return 0;
+}
+
+void PropSpawn(Menu menu, int client, int item)
+{
+	char prop_choice[256];
+	if (!menu.GetItem(item, prop_choice, sizeof(prop_choice)))
+		return;
+
+	KeyValues kv = LoadPropConfig();
+	if (kv == null)
+		return;
+	if (!kv.JumpToKey(prop_choice) || (kv.GetNum("adminonly", 0) == 1 && !Client_IsAdmin(client)))
+	{
+		delete kv;
+		return;
+	}
+
+	char modelname[PLATFORM_MAX_PATH];
+	kv.GetString("model", modelname, sizeof(modelname), "");
+	int Price = kv.GetNum("price", 0);
+	int Health = kv.GetNum("health", 0);
+	int height = kv.GetNum("height", 100);
+	delete kv;
+
+	if (modelname[0] == '\0')
+		return;
+
 	new ClientCredits = iCredits[client];
 	
 	if (Price > 0)
@@ -368,7 +371,7 @@ public PropSpawn(client, param2)
 			if(bAdminOnly)
 			{
 				PrintToChat(client, "%s 你生成了一个 \x04%s", sPrefix, prop_choice);
-				LogAction(client, -1, "\"%s\" spawned a %s", name, prop_choice);
+				LogAction(client, -1, "\"%N\" spawned a %s", client, prop_choice);
 			}
 			else
 			{
@@ -414,12 +417,10 @@ public PropSpawn(client, param2)
 	
 	FurnitureOrigin[0] = (ClientOrigin[0] + (50 * Cosine(DegToRad(EyeAngles[1]))));
 	FurnitureOrigin[1] = (ClientOrigin[1] + (50 * Sine(DegToRad(EyeAngles[1]))));
-	FurnitureOrigin[2] = (ClientOrigin[2] + KvGetNum(kv, "height", 100));
+	FurnitureOrigin[2] = ClientOrigin[2] + height;
 	
 	TeleportEntity(Ent, FurnitureOrigin, NULL_VECTOR, NULL_VECTOR);
 	SetEntityMoveType(Ent, MOVETYPE_VPHYSICS);   
-	
-	CloseHandle(kv);
 	
 	iPropNo[client] += 1;
 	

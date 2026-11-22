@@ -195,13 +195,6 @@ VolOnMapEnd()
  */
 VolOnDisabled(volumeIndex)
 {
-    // Check if volumetric features is enabled.
-    if (!VolEnabled)
-    {
-        // Volumetric features disabled.
-        return;
-    }
-    
     new VolumeFeatureTypes:voltype = Volumes[volumeIndex].Vol_Type;
     
     // Forward stop event to features.

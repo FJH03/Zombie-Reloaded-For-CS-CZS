@@ -625,6 +625,8 @@ stock bool:ConfigReloadConfig(ConfigFile:config)
  */
 stock bool:ConfigOpenConfigFile(ConfigFile:config, &Handle:hConfig)
 {
+    hConfig = INVALID_HANDLE;
+
     // Get config's structure
     new ConfigStructure:structure = ConfigGetConfigStructure(config);
     
@@ -654,7 +656,13 @@ stock bool:ConfigOpenConfigFile(ConfigFile:config, &Handle:hConfig)
         case Structure_Keyvalue:
         {
             hConfig = CreateKeyValues(configalias);
-            return FileToKeyValues(hConfig, configpath);
+            if (FileToKeyValues(hConfig, configpath))
+            {
+                return true;
+            }
+
+            CloseHandle(hConfig);
+            hConfig = INVALID_HANDLE;
         }
     }
     
@@ -716,27 +724,24 @@ stock bool:ConfigKeyvalueTreeSetting(ConfigFile:config, ConfigKvAction:action = 
         if (!exists)
         {
             // Key doesn't exist.
+            CloseHandle(hConfig);
             return false;
         }
     }
     
+    new bool:result = true;
     switch(action)
     {
         case KvAction_Create:
         {
-            if (!setting[0] || !value[0])
+            if (setting[0] && value[0])
             {
-                // We created the key already, so return true.
-                return true;
+                KvSetString(hConfig, setting, value);
             }
-            
-            // Set new value.
-            KvSetString(hConfig, setting, value);
         }
         case KvAction_Delete:
         {
-            // Return deletion result.
-            return KvDeleteKey(hConfig, setting);
+            result = KvDeleteKey(hConfig, setting);
         }
         case KvAction_Set:
         {
@@ -750,8 +755,8 @@ stock bool:ConfigKeyvalueTreeSetting(ConfigFile:config, ConfigKvAction:action = 
         }
     }
     
-    // We successfully set or got the value.
-    return true;
+    CloseHandle(hConfig);
+    return result;
 }
 
 /**

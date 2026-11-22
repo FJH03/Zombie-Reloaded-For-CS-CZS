@@ -10,61 +10,99 @@ public Plugin myinfo =
 	name = "[ZR] FixPlayerTeam",
 	author = "[CNSR] FJH_03",
 	description = "用于CZ-ZR模式的修正团队与角色插件",
-	version = "4.1",
+	version = "4.1.1",
 	url = "<-url->"
 };
 
-static int StopSpawn[65] = {0}; 
+static bool StopSpawn[MAXPLAYERS+1];
+static Handle PlayerTimer[MAXPLAYERS+1];
 
 //定义真人用户的人物模型数组
-static int iEntPlayerModelList[128] = {0};
-static char iEntPlayerModeNamelList[128][64];
+static int iEntPlayerModelList[MAXPLAYERS+1];
+static char iEntPlayerModeNamelList[MAXPLAYERS+1][64];
 
 
 public OnPluginStart()
 {
 	HookEvent("player_spawn", Event_PlayerSpawn, EventHookMode_Post);
 	HookEvent("round_end", RoundEnd, EventHookMode_Pre);
+	AddCommandListener(OnJoinClass, "joinclass");	//监听选择人物的控制台命令
 }
 
 
 public OnMapStart()
 {
-	for(int i = 0; i <= (sizeof(iEntPlayerModelList) - 1); i++) {
-		iEntPlayerModelList[i] = 0;
-	}
-	
-	AddCommandListener(OnJoinClass, "joinclass");	//监听选择人物的控制台命令
+	for (int client = 1; client <= MaxClients; client++)
+		ResetPlayerSelection(client);
+}
+
+public void OnMapEnd()
+{
+	for (int client = 1; client <= MaxClients; client++)
+		delete PlayerTimer[client];
+}
+
+public void OnClientDisconnect(int client)
+{
+	ResetPlayerSelection(client);
+}
+
+void ResetPlayerSelection(int client)
+{
+	delete PlayerTimer[client];
+	StopSpawn[client] = false;
+	iEntPlayerModelList[client] = 0;
+	iEntPlayerModeNamelList[client][0] = '\0';
+}
+
+void SchedulePlayerTimer(int client, float delay, Timer callback)
+{
+	delete PlayerTimer[client];
+	PlayerTimer[client] = CreateTimer(delay, callback, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+}
+
+int TakePlayerTimer(Handle timer, int serial)
+{
+	int client = GetClientFromSerial(serial);
+	if (client == 0 || PlayerTimer[client] != timer)
+		return 0;
+
+	PlayerTimer[client] = null;
+	return IsAliveClient(client) ? client : 0;
 }
 
 
 public Action:Event_PlayerSpawn(Handle event, const char[] name, bool dontBroadcast) 
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if(IsClient(client, true) && !IsFakeClient(client) && StopSpawn[client] == 0)
+	if (!IsAliveClient(client))
+		return Plugin_Continue;
+
+	if (IsFakeClient(client))
+	{
+		SchedulePlayerTimer(client, 1.0, solveBotSelect);
+	}
+	else if (!StopSpawn[client])
 	{
 		if(iEntPlayerModelList[client] >= 1 && iEntPlayerModelList[client] <= 5)
 		{
-			CreateTimer(0.2, SetPlayerModel_T, client);
-			StopSpawn[client] = 1;
+			SchedulePlayerTimer(client, 0.2, SetPlayerModel_T);
+			StopSpawn[client] = PlayerTimer[client] != null;
 		}
 		
-		if(iEntPlayerModelList[client] >= 6 && iEntPlayerModelList[client] <= 10)
+		else if(iEntPlayerModelList[client] >= 6 && iEntPlayerModelList[client] <= 10)
 		{
-			CreateTimer(0.2, SetPlayerModel_CT, client);
-			StopSpawn[client] = 1;
+			SchedulePlayerTimer(client, 0.2, SetPlayerModel_CT);
+			StopSpawn[client] = PlayerTimer[client] != null;
 		}
-	}
-	
-	if (IsFakeClient(client)) {
-		CreateTimer(1.0, solveBotSelect, client);
 	}
 
 	return Plugin_Continue;
 }
 
-public Action:solveBotSelect(Handle timer, int client) {
-	if (IsPlayerAlive(client) && ZR_IsClientHuman(client) && IsFakeClient(client)) {
+public void solveBotSelect(Handle timer, int serial) {
+	int client = TakePlayerTimer(timer, serial);
+	if (client != 0 && IsFakeClient(client) && ZR_IsClientHuman(client)) {
 		char Name[48];
 		GetClientName(client, Name, sizeof(Name));
 		
@@ -73,7 +111,7 @@ public Action:solveBotSelect(Handle timer, int client) {
 		
 		if (!StrEqual(ModelStr, "models/player/ct_sas.mdl") && StrEqual(Name, "^4S^5X^3Y^5-^2E^0.^5Y^0T^d")) {
 			if (GetClientTeam(client) == CS_TEAM_T) {
-				CreateTimer(0.2, SetPlayerModel_CT, client);
+				SchedulePlayerTimer(client, 0.2, SetPlayerModel_CT);
 			}
 			SetEntityModel(client, "models/player/ct_sas.mdl");
 		}
@@ -83,7 +121,7 @@ public Action:solveBotSelect(Handle timer, int client) {
 			StrEqual(ModelStr, "models/player/youxiang.mdl") ||
 			StrEqual(ModelStr, "models/player/hecu.mdl")) {
 			if (GetClientTeam(client) == CS_TEAM_T) {
-				CreateTimer(0.2, SetPlayerModel_CT, client);
+				SchedulePlayerTimer(client, 0.2, SetPlayerModel_CT);
 			}
 		}
 		
@@ -91,36 +129,41 @@ public Action:solveBotSelect(Handle timer, int client) {
 			StrEqual(ModelStr, "models/player/miku_classic.mdl") ||
 			StrEqual(ModelStr, "models/player/t_an.mdl")) {
 			if (GetClientTeam(client) == CS_TEAM_CT) {
-				CreateTimer(0.2, SetPlayerModel_T, client);
+				SchedulePlayerTimer(client, 0.2, SetPlayerModel_T);
 			}
 		}
 	}
-
-	return Plugin_Continue;
 }
 
 
-public Action:SetPlayerModel_T(Handle timer, int client)
+public void SetPlayerModel_T(Handle timer, int serial)
 {
-	CS_SwitchTeam(client, CS_TEAM_T);
-	SetEntityModel(client, iEntPlayerModeNamelList[client]);
-	CS_RespawnPlayer(client);
-	return Plugin_Continue;
+	ApplyPlayerSelection(TakePlayerTimer(timer, serial), CS_TEAM_T);
 }
 
-public Action:SetPlayerModel_CT(Handle timer, int client)
+public void SetPlayerModel_CT(Handle timer, int serial)
 {
-	CS_SwitchTeam(client, CS_TEAM_CT);
-	SetEntityModel(client, iEntPlayerModeNamelList[client]);
+	ApplyPlayerSelection(TakePlayerTimer(timer, serial), CS_TEAM_CT);
+}
+
+void ApplyPlayerSelection(int client, int team)
+{
+	if (client == 0)
+		return;
+
+	CS_SwitchTeam(client, team);
+	if (iEntPlayerModeNamelList[client][0] != '\0')
+		SetEntityModel(client, iEntPlayerModeNamelList[client]);
 	CS_RespawnPlayer(client);
-	return Plugin_Continue;
 }
 
 
 public Action:RoundEnd(Handle:event, const String:name[], bool:dontBroadcast) 
 {
-	for(int i = 1; i <= 64; i++) {
-		StopSpawn[i] = 0;
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		delete PlayerTimer[client];
+		StopSpawn[client] = false;
 	}
 
 	return Plugin_Continue;
@@ -130,7 +173,7 @@ public Action:RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 //监听选择人物的控制台命令的响应函数
 public Action:OnJoinClass(client, const String:command[], args)
 {
-	if(!IsFakeClient(client))
+	if(client > 0 && IsClientInGame(client) && !IsFakeClient(client))
 	{
 		decl String:sText[256]; 
 		GetCmdArg(1, sText, sizeof(sText));
@@ -141,7 +184,7 @@ public Action:OnJoinClass(client, const String:command[], args)
 		if(strlen(sText) > 0)
 			classtype = StringToInt(sText);
 		
-		if(classtype > 0)
+		if(classtype >= 1 && classtype <= 10)
 		{
 			decl String:ModelStr[64];
 			if(classtype == 1)
@@ -167,7 +210,7 @@ public Action:OnJoinClass(client, const String:command[], args)
 				
 			TrimString(ModelStr);
 			iEntPlayerModelList[client] = classtype;
-			strcopy(iEntPlayerModeNamelList[client], strlen(ModelStr) + 1, ModelStr);
+			strcopy(iEntPlayerModeNamelList[client], sizeof(iEntPlayerModeNamelList[]), ModelStr);
 		}
 	}
 
@@ -176,8 +219,7 @@ public Action:OnJoinClass(client, const String:command[], args)
 
 
 //检测玩家属性函数
-bool:IsClient(Client, bool:Alive)
+bool IsAliveClient(int client)
 {
-	return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
+	return client > 0 && client <= MaxClients && IsClientInGame(client) && IsPlayerAlive(client);
 }
-	

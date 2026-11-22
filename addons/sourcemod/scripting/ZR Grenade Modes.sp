@@ -15,7 +15,7 @@
 /* ========================================================================= */
 
 /* Plugin version															*/
-#define C_PLUGIN_VERSION				"1.4.5"
+#define C_PLUGIN_VERSION				"1.4.6"
 
 /* ------------------------------------------------------------------------- */
 
@@ -219,8 +219,15 @@ Forward_OnClientFreezed(client, attacker, Float:time)
 	Call_Finish();
 }
 
-bool:Freeze(client, attacker, &Float:time)
+bool Freeze(int client, int attackerUserId, float time)
 {
+	int attacker = GetClientOfUserId(attackerUserId);
+	if (attacker == 0 || !IsClientInGame(attacker))
+	{
+		return false;
+	}
+
+	int clientSerial = GetClientSerial(client);
 	new Action:result, Float:dummy_duration = time;
 	result = Forward_OnClientFreeze(client, attacker, dummy_duration);
 	
@@ -236,12 +243,20 @@ bool:Freeze(client, attacker, &Float:time)
 		}
 	}
 	
-	if (h_freeze_timer[client] != INVALID_HANDLE)
+	if (GetClientFromSerial(clientSerial) != client || !IsClientInGame(client) || !IsPlayerAlive(client)
+		|| GetClientOfUserId(attackerUserId) != attacker || !IsClientInGame(attacker))
 	{
-		KillTimer(h_freeze_timer[client]);
-		h_freeze_timer[client] = INVALID_HANDLE;
+		return false;
 	}
-	
+
+	Handle timer = CreateTimer(dummy_duration, Unfreeze, clientSerial, TIMER_FLAG_NO_MAPCHANGE);
+	if (timer == null)
+	{
+		return false;
+	}
+	delete h_freeze_timer[client];
+	h_freeze_timer[client] = timer;
+
 	SetEntityMoveType(client, MOVETYPE_NONE);
 	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, NULL_VELOCITY);
 	
@@ -253,20 +268,54 @@ bool:Freeze(client, attacker, &Float:time)
 	TE_SetupGlowSprite(vec, GlowSprite, dummy_duration, 2.0, 50);
 	TE_SendToAll();
 	
-	h_freeze_timer[client] = CreateTimer(dummy_duration, Unfreeze, client, TIMER_FLAG_NO_MAPCHANGE);
-	
 	Forward_OnClientFreezed(client, attacker, dummy_duration);
 	
 	return true;
 }
 
-public Action:Unfreeze(Handle:timer, any:client)
+static void RestoreMovement(int client)
 {
-	if (h_freeze_timer[client] != INVALID_HANDLE)
+	if (IsClientInGame(client) && IsPlayerAlive(client) && GetEntityMoveType(client) == MOVETYPE_NONE)
 	{
 		SetEntityMoveType(client, MOVETYPE_WALK);
-		h_freeze_timer[client] = INVALID_HANDLE;
 	}
+}
+
+public void Unfreeze(Handle timer, int clientSerial)
+{
+	int client = GetClientFromSerial(clientSerial);
+	if (client != 0 && h_freeze_timer[client] == timer)
+	{
+		h_freeze_timer[client] = null;
+		RestoreMovement(client);
+	}
+}
+
+static void ClearAllFreezes()
+{
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (h_freeze_timer[client] != null)
+		{
+			delete h_freeze_timer[client];
+			RestoreMovement(client);
+		}
+	}
+}
+
+public void OnMapEnd()
+{
+	ClearAllFreezes();
+}
+
+public void OnPluginEnd()
+{
+	ClearAllFreezes();
+}
+
+public void OnRoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+	ClearAllFreezes();
 }
 
 public void OnPluginStart()
@@ -290,6 +339,7 @@ public void OnPluginStart()
 	gl_hGrenadeProjectileName.SetValue("smokegrenade_projectile", C_GRENADE_TYPE_SMOKE);
 	
 	HookEvent("smokegrenade_detonate", OnSmokeDetonate);
+	HookEvent("round_start", OnRoundStart, EventHookMode_PostNoCopy);
 	
 	// Check for plugin late loading
 	if (gl_bPluginLateLoading)
@@ -305,7 +355,12 @@ public OnSmokeDetonate(Handle:event, const String:name[], bool:dontBroadcast)
 		return;
 	}
 	
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int attackerUserId = GetEventInt(event, "userid");
+	int attacker = GetClientOfUserId(attackerUserId);
+	if (attacker == 0 || !IsClientInGame(attacker))
+	{
+		return;
+	}
 	
 	new Float:origin[3];
 	origin[0] = GetEventFloat(event, "x"); origin[1] = GetEventFloat(event, "y"); origin[2] = GetEventFloat(event, "z");
@@ -332,31 +387,26 @@ public OnSmokeDetonate(Handle:event, const String:name[], bool:dontBroadcast)
 		
 		GetClientAbsOrigin(i, targetOrigin);
 		targetOrigin[2] += 2.0;
-		if (GetVectorDistance(origin, targetOrigin) <= f_smoke_freeze_distance)
+		float distance = GetVectorDistance(origin, targetOrigin);
+		if (distance <= f_smoke_freeze_distance)
 		{
-			new Handle:trace = TR_TraceRayFilterEx(origin, targetOrigin, MASK_SOLID, RayType_EndPoint, FilterTarget, i);
-		
-			if ((TR_DidHit(trace) && TR_GetEntityIndex(trace) == i) || (GetVectorDistance(origin, targetOrigin) <= 100.0))
+			Handle trace = TR_TraceRayFilterEx(origin, targetOrigin, MASK_SOLID, RayType_EndPoint, FilterTarget, i);
+			bool canFreeze = (TR_DidHit(trace) && TR_GetEntityIndex(trace) == i) || distance <= 100.0;
+			delete trace;
+
+			if (!canFreeze)
 			{
-				Freeze(i, client, f_smoke_freeze_duration);
-				CloseHandle(trace);
-			}
-				
-			else
-			{
-				CloseHandle(trace);
-				
 				GetClientEyePosition(i, targetOrigin);
 				targetOrigin[2] -= 2.0;
-		
+
 				trace = TR_TraceRayFilterEx(origin, targetOrigin, MASK_SOLID, RayType_EndPoint, FilterTarget, i);
-			
-				if ((TR_DidHit(trace) && TR_GetEntityIndex(trace) == i) || (GetVectorDistance(origin, targetOrigin) <= 100.0))
-				{
-					Freeze(i, client, f_smoke_freeze_duration);
-				}
-				
-				CloseHandle(trace);
+				canFreeze = (TR_DidHit(trace) && TR_GetEntityIndex(trace) == i) || GetVectorDistance(origin, targetOrigin) <= 100.0;
+				delete trace;
+			}
+
+			if (canFreeze)
+			{
+				Freeze(i, attackerUserId, f_smoke_freeze_duration);
 			}
 		}
 	}
@@ -446,37 +496,40 @@ public void OnMapStart()
 	}
 }
 
-LightCreate(grenade, Float:pos[3])   
-{  
-	new iEntity = CreateEntityByName("light_dynamic");
-	DispatchKeyValue(iEntity, "inner_cone", "0");
-	DispatchKeyValue(iEntity, "cone", "80");
-	DispatchKeyValue(iEntity, "brightness", "1");
-	DispatchKeyValueFloat(iEntity, "spotlight_radius", 150.0);
-	DispatchKeyValue(iEntity, "pitch", "90");
-	DispatchKeyValue(iEntity, "style", "1");
-	
-	switch(grenade)
+static void LightCreate(int grenade, float pos[3])
+{
+	int entity = CreateEntityByName("light_dynamic");
+	if (entity == -1)
 	{
-		case FLASH : 
-		{
-			DispatchKeyValue(iEntity, "_light", "255 255 255 255");
-			DispatchKeyValueFloat(iEntity, "distance", 1000.0);
-			EmitSoundToAll("items/nvg_on.wav", iEntity, SNDCHAN_WEAPON);
-			CreateTimer(15.0, Delete, iEntity, TIMER_FLAG_NO_MAPCHANGE);
-		}
-		case SMOKE : 
-		{
-			DispatchKeyValue(iEntity, "_light", "75 75 255 255");
-			DispatchKeyValueFloat(iEntity, "distance", f_smoke_freeze_distance);
-			EmitSoundToAll(SOUND_FREEZE_EXPLODE, iEntity, SNDCHAN_WEAPON);
-			CreateTimer(0.2, Delete, iEntity, TIMER_FLAG_NO_MAPCHANGE);
-		}
+		return;
 	}
-		
-	DispatchSpawn(iEntity);
-	TeleportEntity(iEntity, pos, NULL_VECTOR, NULL_VECTOR);
-	AcceptEntityInput(iEntity, "TurnOn");
+
+	bool flash = grenade == FLASH;
+	DispatchKeyValue(entity, "inner_cone", "0");
+	DispatchKeyValue(entity, "cone", "80");
+	DispatchKeyValue(entity, "brightness", "1");
+	DispatchKeyValueFloat(entity, "spotlight_radius", 150.0);
+	DispatchKeyValue(entity, "pitch", "90");
+	DispatchKeyValue(entity, "style", "1");
+	DispatchKeyValue(entity, "_light", flash ? "255 255 255 255" : "75 75 255 255");
+	DispatchKeyValueFloat(entity, "distance", flash ? 1000.0 : f_smoke_freeze_distance);
+
+	int reference = EntIndexToEntRef(entity);
+	bool spawned = DispatchSpawn(entity);
+	entity = EntRefToEntIndex(reference);
+	if (entity == INVALID_ENT_REFERENCE)
+	{
+		return;
+	}
+	if (!spawned || CreateTimer(flash ? 15.0 : 0.2, DeleteLight, reference, TIMER_FLAG_NO_MAPCHANGE) == null)
+	{
+		RemoveEntity(entity);
+		return;
+	}
+
+	EmitSoundToAll(flash ? "items/nvg_on.wav" : SOUND_FREEZE_EXPLODE, entity, SNDCHAN_WEAPON);
+	TeleportEntity(entity, pos, NULL_VECTOR, NULL_VECTOR);
+	AcceptEntityInput(entity, "TurnOn");
 }
 
 static int ParseColorString(const char[] input)
@@ -573,6 +626,8 @@ public void OnClientPutInServer(int iClient)
 
 public void OnClientDisconnect(int iClient)
 {
+	delete h_freeze_timer[iClient];
+
 	// Clear the client data
 	gl_bPlayerInGame	 [iClient] = false;
 	gl_iPlayerGrenadeType[iClient] = C_GRENADE_TYPE_NONE;
@@ -655,9 +710,10 @@ public void OnEntityCreated(int iEntity, const char[] szClassname)
 	}
 }
 
-public Action:CreateEvent_SmokeDetonate(Handle:timer, any:entity)
+public Action CreateEvent_SmokeDetonate(Handle timer, int reference)
 {
-	if (!IsValidEdict(entity))
+	int entity = EntRefToEntIndex(reference);
+	if (entity == INVALID_ENT_REFERENCE)
 	{
 		return Plugin_Stop;
 	}
@@ -668,11 +724,21 @@ public Action:CreateEvent_SmokeDetonate(Handle:timer, any:entity)
 	{
 		new Float:origin[3];
 		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
-		new userid = GetClientUserId(GetEntPropEnt(entity, Prop_Send, "m_hThrower"));
-	
-		new Handle:event = CreateEvent("smokegrenade_detonate");
-		
-		SetEventInt(event, "userid", userid);
+		int thrower = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+		if (thrower < 1 || thrower > MaxClients || !IsClientInGame(thrower))
+		{
+			RemoveEntity(entity);
+			return Plugin_Stop;
+		}
+
+		Event event = CreateEvent("smokegrenade_detonate");
+		if (event == null)
+		{
+			RemoveEntity(entity);
+			return Plugin_Stop;
+		}
+
+		SetEventInt(event, "userid", GetClientUserId(thrower));
 		SetEventFloat(event, "x", origin[0]);
 		SetEventFloat(event, "y", origin[1]);
 		SetEventFloat(event, "z", origin[2]);
@@ -688,9 +754,10 @@ BeamFollowCreate(entity, color[4])
 	TE_SendToAll();	
 }
 
-public Action:DoFlashLight(Handle:timer, any:entity)
+public Action DoFlashLight(Handle timer, int reference)
 {
-	if (!IsValidEdict(entity))
+	int entity = EntRefToEntIndex(reference);
+	if (entity == INVALID_ENT_REFERENCE)
 	{
 		return Plugin_Stop;
 	}
@@ -709,11 +776,12 @@ public Action:DoFlashLight(Handle:timer, any:entity)
 	return Plugin_Stop;
 }
 
-public Action:Delete(Handle:timer, any:entity)
+public void DeleteLight(Handle timer, int reference)
 {
-	if (IsValidEdict(entity))
+	int entity = EntRefToEntIndex(reference);
+	if (entity != INVALID_ENT_REFERENCE)
 	{
-		AcceptEntityInput(entity, "kill");
+		RemoveEntity(entity);
 	}
 }
 
@@ -751,13 +819,13 @@ public void OnGrenadeSpawnPost(int iGrenade)
 					{
 						BeamFollowCreate(iGrenade, FlashColor);
 						
-						CreateTimer(1.3, DoFlashLight, iGrenade, TIMER_FLAG_NO_MAPCHANGE);
+						CreateTimer(1.3, DoFlashLight, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
 					}
 					else if (!strcmp(szClassname, "smokegrenade_projectile"))
 					{
 						BeamFollowCreate(iGrenade, FreezeColor);
 						
-						CreateTimer(1.3, CreateEvent_SmokeDetonate, iGrenade, TIMER_FLAG_NO_MAPCHANGE);
+						CreateTimer(1.3, CreateEvent_SmokeDetonate, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
 					}
 				}
 				case C_GRENADE_MODE_IMPACT:
@@ -856,10 +924,10 @@ static void GrenadeDetonate(int iGrenade)
 	// Check if the grenade is a smoke
 	if (StrEqual(szClassname, "smokegrenade_projectile"))
 	{
-		CreateTimer(0.1, CreateEvent_SmokeDetonate, iGrenade, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(0.1, CreateEvent_SmokeDetonate, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
 	}
 	else if (StrEqual(szClassname, "flashbang_projectile")) {
-		CreateTimer(0.1, DoFlashLight, iGrenade, TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(0.1, DoFlashLight, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
 	}
 	else
 	{

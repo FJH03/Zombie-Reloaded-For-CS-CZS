@@ -48,16 +48,17 @@ enum {
 	kill_grenade_8
 };
 
-new Handle:g_taskClean[MAXPLAYERS+1] = INVALID_HANDLE;
-new Handle:g_taskCountdown[MAXPLAYERS+1] = INVALID_HANDLE;
-new g_killCount[MAXPLAYERS+1] = 0;
+Handle g_taskClean[MAXPLAYERS+1];
+Handle g_taskCountdown[MAXPLAYERS+1];
+int g_killCount[MAXPLAYERS+1];
+int g_RoundGeneration;
 
 public Plugin:myinfo = 
 {
 	name = "[ZR] CSS_8Kills For Human",
 	author = "wTong, [CNSR] FJH_03",
 	description = "CSO Killed Icon(与动态命中反馈插件做了兼容处理)",
-	version = "2.21",
+	version = "2.21.1",
 	url = "www.asdev.cn"
 }
 
@@ -89,110 +90,109 @@ public OnMapStart()
 
 public Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	new victim = GetClientOfUserId(GetEventInt(event, "userid"))
+	new victim = GetClientOfUserId(GetEventInt(event, "userid"));
 	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	new bool:headshot = GetEventBool(event, "headshot");
 	new String:weapon[32];
 	GetEventString(event, "weapon",weapon, sizeof(weapon));
-	
-	g_killCount[victim] = 0;
-	if(g_taskCountdown[victim] != INVALID_HANDLE)
-	{
-		KillTimer(g_taskCountdown[victim]);
-		g_taskCountdown[victim] = INVALID_HANDLE;
-	}
-	
-	if(attacker < 1 || attacker == victim || IsFakeClient(attacker) || ZR_IsClientZombie(attacker) || GetClientTeam(victim) == GetClientTeam(attacker)) 
+
+	if (victim == 0 || !IsClientInGame(victim))
 		return;
-	
-	if(g_killCount[attacker] < 8) 
+
+	ClearKillStreak(victim);
+	if (attacker == 0 || attacker == victim || !IsClientInGame(attacker)
+		|| IsFakeClient(attacker) || ZR_IsClientZombie(attacker)
+		|| GetClientTeam(victim) == GetClientTeam(attacker))
+		return;
+
+	if (g_killCount[attacker] < 8)
 		g_killCount[attacker]++;
-		
-	if(g_taskCountdown[attacker] !=INVALID_HANDLE)
+
+	int serial = GetClientSerial(attacker);
+	delete g_taskCountdown[attacker];
+	g_taskCountdown[attacker] = CreateTimer(10.0, task_Countdown, serial, TIMER_FLAG_NO_MAPCHANGE);
+
+	int type = g_killCount[attacker] - 1;
+	if (StrEqual(weapon, "hegrenade"))
+		type += kill_grenade;
+	else if (StrEqual(weapon, "knife"))
+		type += kill_knife;
+	else if (headshot)
+		type += kill_headshot;
+
+	DataPack pack;
+	if (CreateDataTimer(0.5, ShowKillMessage, pack, TIMER_FLAG_NO_MAPCHANGE) != null)
 	{
-		KillTimer(g_taskCountdown[attacker]);
-		g_taskCountdown[attacker] =INVALID_HANDLE;
+		pack.WriteCell(serial);
+		pack.WriteCell(type);
+		pack.WriteCell(g_RoundGeneration);
 	}
-	g_taskCountdown[attacker] = CreateTimer(10.0,task_Countdown,attacker,1);
-	
-	if (g_killCount[attacker] != 0) {
-		new encodedData;
-		if(StrEqual(weapon, "hegrenade")) {
-			encodedData = (attacker & 0xFF) | ((kill_grenade + g_killCount[attacker] - 1 & 0xFF) << 8);			
-		}
-			
-		else if(StrEqual(weapon, "knife")) {
-			encodedData = (attacker & 0xFF) | ((kill_knife + g_killCount[attacker] - 1 & 0xFF) << 8);
-		}
-			
-		else if(headshot) {
-			encodedData = (attacker & 0xFF) | ((kill_headshot + g_killCount[attacker] - 1 & 0xFF) << 8);
-		}
-			
-		else {
-			encodedData = (attacker & 0xFF) | ((g_killCount[attacker] - 1 & 0xFF) << 8);
-		}
-		
-		CreateTimer(0.5, ShowKillMessage, encodedData);
-	}	
-			
-	
-	if(g_taskClean[attacker] != INVALID_HANDLE)
-	{
-		KillTimer(g_taskClean[attacker]);
-		g_taskClean[attacker] =INVALID_HANDLE;
-	}
-	g_taskClean[attacker] = CreateTimer(5.0,task_Clean,attacker);
+	else
+		delete pack;
+
+	delete g_taskClean[attacker];
+	g_taskClean[attacker] = CreateTimer(5.0, task_Clean, serial, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Event_round_start(Handle:event,const String:name[],bool:dontBroadcast)
 {
-	for(new client=1;client <= MaxClients; client++)
+	g_RoundGeneration++;
+	for (int client = 1; client <= MaxClients; client++)
+		ClearKillStreak(client);
+}
+
+public void task_Clean(Handle timer, int serial)
+{
+	int client = GetClientFromSerial(serial);
+	if (client == 0 || g_taskClean[client] != timer)
+		return;
+
+	g_taskClean[client] = null;
+	if (IsClientInGame(client))
+		ClientCommand(client, "r_screenoverlay \"\"");
+}
+
+public void task_Countdown(Handle timer, int serial)
+{
+	int client = GetClientFromSerial(serial);
+	if (client != 0 && g_taskCountdown[client] == timer)
 	{
+		g_taskCountdown[client] = null;
 		g_killCount[client] = 0;
-		if(g_taskCountdown[client] != INVALID_HANDLE)
-		{
-			KillTimer(g_taskCountdown[client]);
-			g_taskCountdown[client] = INVALID_HANDLE;
-		}
 	}
 }
 
-public Action:task_Clean(Handle:Timer, any:client)
+public void ShowKillMessage(Handle timer, DataPack pack)
 {
-	KillTimer(Timer);
-	g_taskClean[client] = INVALID_HANDLE;
-	
-	ClientCommand(client, "r_screenoverlay \"\"");
+	pack.Reset();
+	int client = GetClientFromSerial(pack.ReadCell());
+	int type = pack.ReadCell();
+	int round = pack.ReadCell();
+	if (client != 0 && IsClientInGame(client) && round == g_RoundGeneration)
+		ClientCommand(client, "r_screenoverlay \"%s\"", NAME_OVERLAYS[type]);
 }
 
-public Action:task_Countdown(Handle:Timer, any:client)
+public void OnClientDisconnect(int client)
 {
+	ClearKillTimers(client);
+}
+
+public void OnMapEnd()
+{
+	for (int client = 1; client <= MaxClients; client++)
+		ClearKillTimers(client);
+}
+
+void ClearKillTimers(int client)
+{
+	ClearKillStreak(client);
+	delete g_taskClean[client];
+}
+
+void ClearKillStreak(int client)
+{
+	delete g_taskCountdown[client];
 	g_killCount[client] = 0;
-	if(!IsPlayerAlive(client) || g_killCount[client]==0)
-	{
-		KillTimer(Timer);
-		g_taskCountdown[client] = INVALID_HANDLE;
-	}
-}
-
-public Action ShowKillMessage(Handle timer, any encodedData)
-{
-	KillTimer(timer);
-	new client = encodedData & 0xFF; // 获取 client
-	new type = (encodedData >> 8) & 0xFF; // 获取 type
-	
-	ClientCommand(client, "r_screenoverlay \"%s\"", NAME_OVERLAYS[type]);
-	return Plugin_Continue;
-}
-
-public OnClientDisconnect_Post(client)
-{	
-	if(g_taskClean[client] != INVALID_HANDLE)
-	{
-		KillTimer(g_taskClean[client]);
-		g_taskClean[client] = INVALID_HANDLE;
-	}
 }
 
 UnlockConsoleCommandAndConvar(const String:command[])
@@ -209,4 +209,4 @@ UnlockConsoleCommandAndConvar(const String:command[])
 		flags = GetConVarFlags(cvar);
 		SetConVarFlags(cvar, flags & ~FCVAR_CHEAT);
 	}
-} 
+}

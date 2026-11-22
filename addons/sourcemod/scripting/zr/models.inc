@@ -71,13 +71,20 @@ ModelsLoad()
     LogEvent(false, LogType_Normal, LOG_CORE_EVENTS, LogModule_Models, "Config Validation", "Loading models from file \"%s\".", modelPath);
     
     // Load model data file.
-    FileToKeyValues(kvModels, modelPath);
+    if (!FileToKeyValues(kvModels, modelPath))
+    {
+        CloseHandle(kvModels);
+        LogEvent(false, LogType_Fatal, LOG_CORE_EVENTS, LogModule_Models, "Config Validation", "Can't parse model list \"%s\"", modelPath);
+        return;
+    }
     
     // Try to find the first model.
     KvRewind(kvModels);
     if (!KvGotoFirstSubKey(kvModels))
     {
+        CloseHandle(kvModels);
         LogEvent(false, LogType_Fatal, LOG_CORE_EVENTS, LogModule_Models, "Config Validation", "Can't find any models in \"%s\"", modelPath);
+        return;
     }
     
     decl String:buffer[256];

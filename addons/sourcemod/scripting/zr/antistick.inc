@@ -63,6 +63,7 @@
  * Stores "StartTouch" HookID's for each client.
  */
 new g_iStartTouchHookID[MAXPLAYERS + 1] = {-1, ...};
+new Handle:g_hAntiStickTimer[MAXPLAYERS + 1];
 
 /**
  * List of components that make up the model's rectangular boundaries.
@@ -118,6 +119,8 @@ AntiStickClientInit(client)
  */
 AntiStickOnClientDisconnect(client)
 {
+    AntiStickStopTimer(client, false);
+
     // Unhook "StartTouch" callback, and reset variable.
     if (g_iStartTouchHookID[client] != -1)
     {
@@ -128,6 +131,15 @@ AntiStickOnClientDisconnect(client)
         #endif
         
         g_iStartTouchHookID[client] = -1;
+    }
+}
+
+AntiStickStopTimer(client, bool:restore = true)
+{
+    if (ZREndTimer(g_hAntiStickTimer[client]) && restore && IsClientInGame(client)
+        && AntiStickGetCollisionGroup(client) == ANTISTICK_COLLISIONS_OFF)
+    {
+        AntiStickSetCollisionGroup(client, ANTISTICK_COLLISIONS_ON);
     }
 }
 
@@ -187,34 +199,34 @@ public ZRTools_Action:AntiStickStartTouch(client, entity)
     // If the client is in any other collision group than "off", than we must set them to off, to unstick.
     if (clientcollisiongroup != ANTISTICK_COLLISIONS_OFF)
     {
-        // Disable collisions to unstick, and start timers to re-solidify.
-        AntiStickSetCollisionGroup(client, ANTISTICK_COLLISIONS_OFF);
-        CreateTimer(0.0, AntiStickSolidifyTimer, client, TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
+        if (g_hAntiStickTimer[client] == INVALID_HANDLE)
+        {
+            g_hAntiStickTimer[client] = CreateTimer(0.0, AntiStickSolidifyTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
+        }
+        if (g_hAntiStickTimer[client] != INVALID_HANDLE)
+        {
+            AntiStickSetCollisionGroup(client, ANTISTICK_COLLISIONS_OFF);
+        }
     }
 }
 
 /**
  * Callback for solidify timer.
  * 
- * @param client        The client index.
+ * @param serial        The client connection serial.
  */
-public Action:AntiStickSolidifyTimer(Handle:timer, any:client)
+public Action:AntiStickSolidifyTimer(Handle:timer, any:serial)
 {
-    // If client has left, then stop.
-    if (!IsClientInGame(client))
+    new client = GetClientFromSerial(serial);
+    if (!client || g_hAntiStickTimer[client] != timer)
     {
         return Plugin_Stop;
     }
-    
-    // If the client is dead, then stop.
-    if (!IsPlayerAlive(client))
+
+    if (!IsClientInGame(client) || !IsPlayerAlive(client) ||
+        AntiStickGetCollisionGroup(client) == ANTISTICK_COLLISIONS_ON)
     {
-        return Plugin_Stop;
-    }
-    
-    // If the client's collisions are already on, then stop.
-    if (AntiStickGetCollisionGroup(client) == ANTISTICK_COLLISIONS_ON)
-    {
+        g_hAntiStickTimer[client] = INVALID_HANDLE;
         return Plugin_Stop;
     }
     
@@ -247,6 +259,7 @@ public Action:AntiStickSolidifyTimer(Handle:timer, any:client)
     }
     
     // Change collisions back to normal.
+    g_hAntiStickTimer[client] = INVALID_HANDLE;
     AntiStickSetCollisionGroup(client, ANTISTICK_COLLISIONS_ON);
     
     // Debug message. May be useful when calibrating antistick.

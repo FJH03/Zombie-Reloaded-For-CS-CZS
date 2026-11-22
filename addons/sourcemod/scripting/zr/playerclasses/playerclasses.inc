@@ -526,12 +526,7 @@ ClassLoad()
     // Register config file.
     ConfigRegisterConfig(File_Classes, Structure_Keyvalue, CONFIG_FILE_ALIAS_CLASSES);
     
-    new Handle:kvClassData;
-    
-    // Make sure kvClassData is ready to use.
-    kvClassData = CreateKeyValues(CONFIG_FILE_ALIAS_CLASSES);
-    
-    // Get weapons config path.
+    // Get player class config path.
     decl String:pathclasses[PLATFORM_MAX_PATH];
     new bool:exists = ConfigGetCvarFilePath(CVAR_CONFIG_PATH_CLASSES, pathclasses);
     
@@ -539,11 +534,6 @@ ClassLoad()
     if (!exists)
     {
         LogEvent(false, LogType_Fatal, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Missing playerclasses config file \"%s\"", pathclasses);
-        
-        // Remove key/value cache.
-        CloseHandle(kvClassData);
-        kvClassData = INVALID_HANDLE;
-        
         return;
     }
     
@@ -551,13 +541,21 @@ ClassLoad()
     LogEvent(false, LogType_Normal, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Loading classes from file \"%s\".", pathclasses);
     
     // Put file data into memory.
-    FileToKeyValues(kvClassData, pathclasses);
+    new Handle:kvClassData = CreateKeyValues(CONFIG_FILE_ALIAS_CLASSES);
+    if (!FileToKeyValues(kvClassData, pathclasses))
+    {
+        CloseHandle(kvClassData);
+        LogEvent(false, LogType_Fatal, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Can't parse playerclasses config file \"%s\"", pathclasses);
+        return;
+    }
     
     // Try to find the first class.
     KvRewind(kvClassData);
     if (!KvGotoFirstSubKey(kvClassData))
     {
+        CloseHandle(kvClassData);
         LogEvent(false, LogType_Fatal, LOG_CORE_EVENTS, LogModule_Playerclasses, "Config Validation", "Can't find any classes in \"%s\"", pathclasses);
+        return;
     }
     
     new String:name[64];
@@ -661,6 +659,7 @@ ClassLoad()
         // Update the counter.
         ClassCount++;
     } while (KvGotoNextKey(kvClassData));
+    CloseHandle(kvClassData);
     
     // Validate team requirements.
     if (!ClassValidateTeamRequirements())
@@ -691,9 +690,6 @@ ClassLoad()
     ConfigSetConfigReloadFunc(File_Classes, GetFunctionByName(GetMyHandle(), "ClassOnConfigReload"));
     ConfigSetConfigPath(File_Classes, pathclasses);
     
-    // Remove key/value cache.
-    CloseHandle(kvClassData);
-    kvClassData = INVALID_HANDLE;
 }
 
 /**

@@ -95,37 +95,11 @@ ZHPOnCookiesCached(client)
 }
 
 /**
- * Client is spawning into the game.
- * 
- * @param client    The client index.
+ * Stops the client's repeating zombie health display timer.
  */
-ZHPOnClientSpawn(client)
+ZHPStopTimer(client)
 {
-    // If timer is running, kill it.
-    if (tZHP[client] != INVALID_HANDLE)
-    {
-        KillTimer(tZHP[client]);
-    }
-    
-    // Reset timer handle.
-    tZHP[client] = INVALID_HANDLE;
-}
-
-/**
- * Client has been killed.
- * 
- * @param client    The client index.
- */
-ZHPOnClientDeath(client)
-{
-    // If timer is running, kill it.
-    if (tZHP[client] != INVALID_HANDLE)
-    {
-        KillTimer(tZHP[client]);
-    }
-    
-    // Reset timer handle.
-    tZHP[client] = INVALID_HANDLE;
+    ZREndTimer(tZHP[client]);
 }
 
 /**
@@ -135,6 +109,8 @@ ZHPOnClientDeath(client)
  */
 ZHPOnClientInfected(client)
 {
+    ZHPStopTimer(client);
+
     // If ZHP is disabled, then stop.
     new bool:zhp = GetConVarBool(g_hCvarsList[CVAR_ZHP]);
     if (!zhp)
@@ -145,14 +121,8 @@ ZHPOnClientInfected(client)
     // Update HP display.
     ZHPUpdateHUD(client);
     
-    // If timer is currently running, kill it.
-    if (tZHP[client] != INVALID_HANDLE)
-    {
-        KillTimer(tZHP[client]);
-    }
-    
     // Start repeating timer to update display.
-    tZHP[client] = CreateTimer(5.0, ZHPTimer, client, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+    tZHP[client] = CreateTimer(5.0, ZHPTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
 }
 
 /**
@@ -279,13 +249,19 @@ public Action:ZHPCommand(client, argc)
  * Timer callback.  Repetitively calls ZHPUpdateHUD() until stopped.
  * 
  * @param timer     The timer handle. 
- * @param client    The client index.
+ * @param serial    The client connection serial.
  */
-public Action:ZHPTimer(Handle:timer, any:client)
+public Action:ZHPTimer(Handle:timer, any:serial)
 {
-    // If client leaves, then stop timer.
-    if (!IsClientInGame(client))
+    new client = GetClientFromSerial(serial);
+    if (!client || tZHP[client] != timer)
     {
+        return Plugin_Stop;
+    }
+
+    if (!IsClientInGame(client) || !IsPlayerAlive(client) || !InfectIsClientInfected(client))
+    {
+        tZHP[client] = INVALID_HANDLE;
         return Plugin_Stop;
     }
     

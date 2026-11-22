@@ -25,6 +25,26 @@
  * ============================================================================
  */
 
+new Handle:g_hPlayerSpawnPostTimer[MAXPLAYERS + 1];
+new Handle:g_hPlayerJumpPostTimer[MAXPLAYERS + 1];
+
+EventCancelClientPostTimers(client)
+{
+    ZREndTimer(g_hPlayerSpawnPostTimer[client]);
+    ZREndTimer(g_hPlayerJumpPostTimer[client]);
+}
+
+EventCancelRoundClientTimers()
+{
+    for (new client = 1; client <= MAXPLAYERS; client++)
+    {
+        EventCancelClientPostTimers(client);
+        ClassCancelInstantChange(client);
+        ZHPStopTimer(client);
+        AntiStickStopTimer(client);
+    }
+}
+
 /**
  * Init function for event module.
  */
@@ -133,6 +153,8 @@ public Action:EventRoundFreezeEnd(Handle:event, const String:name[], bool:dontBr
  */
 public Action:EventRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
+    EventCancelRoundClientTimers();
+
     // Get all required event info.
     new reason = GetEventInt(event, "reason");
     
@@ -141,7 +163,7 @@ public Action:EventRoundEnd(Handle:event, const String:name[], bool:dontBroadcas
     RoundEndOnRoundEnd(reason);
     InfectOnRoundEnd();
     SEffectsOnRoundEnd();
-    RespawnOnRoundEnd();
+    RespawnCancelAllTimers();
     ZSpawnOnRoundEnd();
     VolOnRoundEnd();
     ImmunityOnRoundEnd();
@@ -180,7 +202,15 @@ public Action:EventPlayerSpawn(Handle:event, const String:name[], bool:dontBroad
 {
     // Get all required event info.
     new index = GetClientOfUserId(GetEventInt(event, "userid"));
-    
+    if (!index || !IsClientInGame(index))
+    {
+        return;
+    }
+
+    EventCancelClientPostTimers(index);
+    SpawnProtectStopTimer(index);
+    AntiStickStopTimer(index);
+
     // Forward event to modules.
     InfectOnClientSpawn(index);     // Some modules depend on this to finish first.
     AccountOnClientSpawn(index);    // Some modules depend on this to finish first.
@@ -188,14 +218,14 @@ public Action:EventPlayerSpawn(Handle:event, const String:name[], bool:dontBroad
     WeaponsOnClientSpawn(index);
     RoundStartOnClientSpawn(index);
     SEffectsOnClientSpawn(index);
-    RespawnOnClientSpawn(index);
+    RespawnCancelTimer(index);
     ZTele_OnClientSpawn(index);
-    ZHPOnClientSpawn(index);
+    ZHPStopTimer(index);
     VolOnPlayerSpawn(index);
     ImmunityClientSpawn(index);
     
     // Fire post player_spawn event.
-    CreateTimer(0.1, EventPlayerSpawnPost, index);
+    g_hPlayerSpawnPostTimer[index] = CreateTimer(0.1, EventPlayerSpawnPost, GetClientSerial(index), TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /**
@@ -206,9 +236,15 @@ public Action:EventPlayerSpawn(Handle:event, const String:name[], bool:dontBroad
  * @param name      Name of the event.
  * @dontBroadcast   If true, event is broadcasted to all clients, false if not.
  */
-public Action:EventPlayerSpawnPost(Handle:timer, any:client)
+public Action:EventPlayerSpawnPost(Handle:timer, any:serial)
 {
-    // If client isn't in-game, then stop.
+    new client = GetClientFromSerial(serial);
+    if (!client || g_hPlayerSpawnPostTimer[client] != timer)
+    {
+        return;
+    }
+
+    g_hPlayerSpawnPostTimer[client] = INVALID_HANDLE;
     if (!IsClientInGame(client))
     {
         return;
@@ -283,16 +319,18 @@ public Action:EventPlayerDeath(Handle:event, const String:name[], bool:dontBroad
     }
     
     // Forward event to modules.
+    EventCancelClientPostTimers(index);
+    AntiStickStopTimer(index);
     ClassOnClientDeath(index);
     InfectOnClientDeath(index, attacker);
     VEffectsOnClientDeath(index);
     SEffectsOnClientDeath(index);
-    SpawnProtectOnClientDeath(index);
+    SpawnProtectStopTimer(index);
     RespawnOnClientDeath(index, attacker, weapon);
     NapalmOnClientDeath(index);
     ZSpawnOnClientDeath(index);
     ZTele_OnClientDeath(index);
-    ZHPOnClientDeath(index);
+    ZHPStopTimer(index);
     VolOnPlayerDeath(index);
     RoundEndOnClientDeath();
     ImmunityOnClientDeath(index);
@@ -310,9 +348,14 @@ public Action:EventPlayerJump(Handle:event, const String:name[], bool:dontBroadc
 {
     // Get all required event info.
     new index = GetClientOfUserId(GetEventInt(event, "userid"));
-    
+    if (!index || !IsClientInGame(index))
+    {
+        return;
+    }
+
+    ZREndTimer(g_hPlayerJumpPostTimer[index]);
     // Fire post player_jump event.
-    CreateTimer(0.0, EventPlayerJumpPost, index);
+    g_hPlayerJumpPostTimer[index] = CreateTimer(0.0, EventPlayerJumpPost, GetClientSerial(index), TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /**
@@ -323,10 +366,16 @@ public Action:EventPlayerJump(Handle:event, const String:name[], bool:dontBroadc
  * @param name      Name of the event.
  * @dontBroadcast   If true, event is broadcasted to all clients, false if not.
  */
-public Action:EventPlayerJumpPost(Handle:timer, any:client)
+public Action:EventPlayerJumpPost(Handle:timer, any:serial)
 {
-    // If client isn't in-game, then stop.
-    if (!IsClientInGame(client))
+    new client = GetClientFromSerial(serial);
+    if (!client || g_hPlayerJumpPostTimer[client] != timer)
+    {
+        return;
+    }
+
+    g_hPlayerJumpPostTimer[client] = INVALID_HANDLE;
+    if (!IsClientInGame(client) || !IsPlayerAlive(client))
     {
         return;
     }

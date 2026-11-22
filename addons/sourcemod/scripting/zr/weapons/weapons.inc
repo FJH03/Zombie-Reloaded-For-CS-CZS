@@ -390,11 +390,14 @@ WeaponsOnItemPickup(client, weapon)
     
     // Fill datapack with event information.
     new Handle:eventinfo = CreateDataPack();
-    WritePackCell(eventinfo, client);
-    WritePackCell(eventinfo, weapon);
+    WritePackCell(eventinfo, GetClientSerial(client));
+    WritePackCell(eventinfo, EntIndexToEntRef(weapon));
     
     // Create post delay timer.
-    CreateTimer(0.0, WeaponsOnItemPickupPost, eventinfo, TIMER_DATA_HNDL_CLOSE);
+    if (CreateTimer(0.0, WeaponsOnItemPickupPost, eventinfo, TIMER_DATA_HNDL_CLOSE | TIMER_FLAG_NO_MAPCHANGE) == INVALID_HANDLE)
+    {
+        CloseHandle(eventinfo);
+    }
 }
 
 /**
@@ -407,17 +410,18 @@ public Action:WeaponsOnItemPickupPost(Handle:timer, Handle:eventinfo)
 {
     // Get event info.
     ResetPack(eventinfo);
-    new client = ReadPackCell(eventinfo);
-    new weapon = ReadPackCell(eventinfo);
+    new client = GetClientFromSerial(ReadPackCell(eventinfo));
+    new weapon = EntRefToEntIndex(ReadPackCell(eventinfo));
     
     // If client isn't in the game anymore, then stop.
-    if (!IsClientInGame(client))
+    if (!client || !IsClientInGame(client))
     {
         return;
     }
     
     // If the weapon entity isn't valid anymore, then stop.
-    if (!IsValidEdict(weapon))
+    if (weapon == INVALID_ENT_REFERENCE || !IsValidEdict(weapon) ||
+        GetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity") != client)
     {
         return;
     }

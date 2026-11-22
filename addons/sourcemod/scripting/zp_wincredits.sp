@@ -8,7 +8,7 @@ public Plugin:myinfo =
 	name = "[ZP] wincredits",
 	author = "Franc1sco franug",
 	description = "",
-	version = "3.1",
+	version = "3.1.1",
 	url = "http://steamcommunity.com/id/franug"
 };
 
@@ -22,6 +22,7 @@ new g_cvarCreditsKill;
 new g_disparos;
 
 new Handle:AmmoTimer2;
+new Handle:g_RoundNotice;
 
 public OnPluginStart()
 {
@@ -40,17 +41,26 @@ public OnPluginStart()
 	HookConVarChange(cvarCreditsKill, OnConVarChanged);
 	HookConVarChange(disparos, OnConVarChanged);
 	HookEvent("round_start", InicioRonda);
+	HookEvent("round_end", FinRonda);
 }
 
-public Action:InicioRonda(Handle:event, const String:name[], bool:dontBroadcast)
+public void InicioRonda(Event event, const char[] name, bool dontBroadcast)
 {
-	CreateTimer(1.5, llamada);
+	delete g_RoundNotice;
+	g_RoundNotice = CreateTimer(1.5, llamada, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action:llamada(Handle:timer)
+public void FinRonda(Event event, const char[] name, bool dontBroadcast)
 {
+	delete g_RoundNotice;
+}
+
+public Action llamada(Handle timer)
+{
+	g_RoundNotice = null;
 	PrintToChatAll("\x01\x03[\x04SM_Franug-ZombiePlague\x03]\x01 %t", "Mata jugadores para conseguir creditos");
 	PrintToChatAll("\x01\x03[\x04SM_Franug-ZombiePlague\x03]\x01 %t", "Escribe !premios para gastar tus creditos en premios");
+	return Plugin_Stop;
 }
 
 public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
@@ -102,15 +112,17 @@ public Action:EventPlayerDeath(Handle:event, const String:name[], bool:dontBroad
 
 public OnMapStart()
 {
-	if (AmmoTimer2 != INVALID_HANDLE) {
-		KillTimer(AmmoTimer2);
-	}
-
-	new Float:interval2 = GetConVarFloat(cvarInterval);
-	AmmoTimer2 = CreateTimer(interval2, ResetAmmo2, _, TIMER_REPEAT);
+	delete AmmoTimer2;
+	AmmoTimer2 = CreateTimer(GetConVarFloat(cvarInterval), ResetAmmo2, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action:ResetAmmo2(Handle:timer)
+public void OnMapEnd()
+{
+	delete g_RoundNotice;
+	delete AmmoTimer2;
+}
+
+public Action ResetAmmo2(Handle timer)
 {
 	for (new client = 1; client <= MaxClients; client++)
 	{
@@ -121,4 +133,5 @@ public Action:ResetAmmo2(Handle:timer)
 	}
 
 	PrintToChatAll("\x01\x03[\x04SM_Franug-ZombiePlague\x03]\x01 %t", "Has recibido 1 credito gratis! cada minuto recibiras 1 credito gratuito");
+	return Plugin_Continue;
 }

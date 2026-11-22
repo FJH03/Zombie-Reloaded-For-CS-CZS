@@ -9,17 +9,29 @@ public Plugin:myinfo =
 	name = "[ZP] zombie_smoke",
 	author = "[CNSR] FJH_03",
 	description = "僵尸放毒雾",
-	version = "3.0",
+	version = "3.0.1",
 	url = "<-url->"
 };
 
 Handle	g_cSmokeTime,g_cSmokeColor,g_cSmokeAlpha,g_cTimerDamage,g_cSmokeRadius,g_cSmokeDamage,g_cSmokeStartSize,g_cSmokeEndSize,
 g_cBaseSpread, g_cSpreadSpeed,g_cSpeed, g_cRate, g_cJetLength, g_cTwist, g_cPublicMsg;
-bool 	g_bPublicMsg,StopSmoke[MAXPLAYERS + 1], g_haveSmoke[MAXPLAYERS + 1];
-int     g_iSmokeTime,g_iTimerDamage,g_iSmokeRadius,g_iSmokeDamage;
-float   g_pos[MAXPLAYERS + 1][3];
+bool 	g_bPublicMsg, g_haveSmoke[MAXPLAYERS + 1];
+int     g_iSmokeTime,g_iSmokeRadius,g_iSmokeDamage;
+float   g_fTimerDamage;
 char    g_sSmokeColor[12],g_sSmokeAlpha[4],g_sSmokeStartSize[7],g_sSmokeEndSize[7], g_sBaseSpread[7], 
 g_sSpreadSpeed[7],g_sSpeed[7], g_sRate[7], g_sJetLength[7], g_sTwist[7];
+
+enum struct SmokeCloud
+{
+	int reference;
+	int ownerSerial;
+	float center[3];
+	Handle damageTimer;
+	Handle expiryTimer;
+}
+
+ArrayList g_Clouds;
+bool g_AwardRegistered;
 
 // configuration part
 #define AWARDNAME "zombie_smoke" // Name of award
@@ -30,6 +42,7 @@ g_sSpreadSpeed[7],g_sSpeed[7], g_sRate[7], g_sJetLength[7], g_sTwist[7];
 
 public void OnPluginStart()
 {
+	g_Clouds = new ArrayList(sizeof(SmokeCloud));
 	CreateTimer(0.1, Lateload);
 	
 	g_cSmokeTime			= CreateConVar("zp_Smoke_time", 	"5", 		"毒气持续时间（以秒为单位）", FCVAR_NOTIFY);
@@ -69,6 +82,8 @@ public void OnPluginStart()
 	HookConVarChange(g_cSmokeDamage, eConvarChanged);
 	
 	HookConVarChange(g_cPublicMsg, eConvarChanged);
+	HookEvent("round_start", Event_ResetRound);
+	HookEvent("round_end", Event_ResetRound);
 	AutoExecConfig(true, "zombiereloaded/zp_zombie_smoke");
 	CvarsChanged();
 }
@@ -87,7 +102,7 @@ void CvarsChanged()
 {
 	g_bPublicMsg = GetConVarBool(g_cPublicMsg);
 	g_iSmokeTime = GetConVarInt(g_cSmokeTime);
-	g_iTimerDamage = GetConVarInt(g_cTimerDamage);
+	g_fTimerDamage = GetConVarFloat(g_cTimerDamage);
 	g_iSmokeRadius = GetConVarInt(g_cSmokeRadius);
 	g_iSmokeDamage = GetConVarInt(g_cSmokeDamage);
 	GetConVarString(g_cSmokeColor,g_sSmokeColor, sizeof(g_sSmokeColor));
@@ -104,12 +119,14 @@ void CvarsChanged()
 	GetConVarString(g_cTwist,g_sTwist, sizeof(g_sTwist));
 }
 
-public Action:Lateload(Handle:timer)
+public Action Lateload(Handle timer)
 {
 	LoadTranslations(TRANSLATIONS); // translations to the local plugin
 	ZP_LoadTranslations(TRANSLATIONS); // sent translations to the main plugin
 	
 	ZP_AddAward(AWARDNAME, PRICE, AWARDTEAM); // add award to the main plugin
+	g_AwardRegistered = true;
+	return Plugin_Stop;
 }
 
 public ZP_OnAwardBought( client, const String:awardbought[])
@@ -125,6 +142,49 @@ public ZP_OnAwardBought( client, const String:awardbought[])
 public void OnMapStart()
 {
 	PrecacheModel("particle/particle_smokegrenade1.vmt");
+}
+
+public void OnMapEnd()
+{
+	ResetRound();
+}
+
+public void OnPluginEnd()
+{
+	ResetRound();
+	if (g_AwardRegistered && GetFeatureStatus(FeatureType_Native, "ZP_RemoveAward") == FeatureStatus_Available)
+		ZP_RemoveAward(AWARDNAME);
+}
+
+public void OnClientDisconnect(int client)
+{
+	g_haveSmoke[client] = false;
+	int serial = GetClientSerial(client);
+	SmokeCloud cloud;
+	for (int i = g_Clouds.Length - 1; i >= 0; i--)
+	{
+		g_Clouds.GetArray(i, cloud, sizeof(cloud));
+		if (cloud.ownerSerial == serial)
+			RemoveCloud(i, cloud);
+	}
+}
+
+public void Event_ResetRound(Event event, const char[] name, bool dontBroadcast)
+{
+	ResetRound();
+}
+
+void ResetRound()
+{
+	for (int client = 1; client <= MaxClients; client++)
+		g_haveSmoke[client] = false;
+
+	SmokeCloud cloud;
+	for (int i = g_Clouds.Length - 1; i >= 0; i--)
+	{
+		g_Clouds.GetArray(i, cloud, sizeof(cloud));
+		RemoveCloud(i, cloud);
+	}
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
@@ -159,8 +219,9 @@ public Action Command_Smoke(int client, int args)
 		return Plugin_Handled;
 	}
 
+	if (!CreateColorSmoke(client, float(g_iSmokeTime)))
+		return Plugin_Handled;
 	g_haveSmoke[client] = false;
-	CreateColorSmoke(client, g_iSmokeTime*1.0);
 
 	if(g_bPublicMsg) {
 		PrintToChatAll("\x01\x03[\x04SM_Franug-ZombiePlague\x03]\x01 %t", "the smoke has been released");
@@ -169,148 +230,182 @@ public Action Command_Smoke(int client, int args)
 	return Plugin_Handled;
 }
 
-//毒物
-stock CreateColorSmoke(client, Float:SmokeTimer)
+bool CreateColorSmoke(int client, float duration)
 {
-	new SmokeEnt = CreateEntityByName("env_smokestack");
-	if(SmokeEnt)
+	int entity = CreateEntityByName("env_smokestack");
+	if (entity == -1)
+		return false;
+
+	SmokeCloud cloud;
+	cloud.reference = EntIndexToEntRef(entity);
+	cloud.ownerSerial = GetClientSerial(client);
+	GetClientAbsOrigin(client, cloud.center);
+
+	char origin[64];
+	Format(origin, sizeof(origin), "%f %f %f", cloud.center[0], cloud.center[1], cloud.center[2] + 15.0);
+	DispatchKeyValue(entity, "Origin", origin);
+	DispatchKeyValue(entity, "BaseSpread", g_sBaseSpread);
+	DispatchKeyValue(entity, "SpreadSpeed", g_sSpreadSpeed);
+	DispatchKeyValue(entity, "Speed", g_sSpeed);
+	DispatchKeyValue(entity, "StartSize", g_sSmokeStartSize);
+	DispatchKeyValue(entity, "EndSize", g_sSmokeEndSize);
+	DispatchKeyValue(entity, "Rate", g_sRate);
+	DispatchKeyValue(entity, "JetLength", g_sJetLength);
+	DispatchKeyValue(entity, "Twist", g_sTwist);
+	DispatchKeyValue(entity, "RenderColor", g_sSmokeColor);
+	DispatchKeyValue(entity, "RenderAmt", g_sSmokeAlpha);
+	DispatchKeyValue(entity, "SmokeMaterial", "particle/particle_smokegrenade1.vmt");
+
+	if (!DispatchSpawn(entity) || !AcceptEntityInput(entity, "TurnOn"))
 	{
-		//坐标
-		new Float:pos[3];
-		new String:originData[64];
-		GetClientAbsOrigin(client, pos);
-		Format(originData, sizeof(originData), "%f %f %f", pos[0], pos[1], (pos[2]+15.0));
-		DispatchKeyValue(SmokeEnt,"Origin", originData);
-		//基本蔓延
-		DispatchKeyValue(SmokeEnt,"BaseSpread", g_sBaseSpread);
-		//蔓延速度
-		DispatchKeyValue(SmokeEnt,"SpreadSpeed", g_sSpreadSpeed);
-		//速度
-		DispatchKeyValue(SmokeEnt,"Speed", g_sSpeed);
-		//初始大小
-		DispatchKeyValue(SmokeEnt,"StartSize", g_sSmokeStartSize);
-		//完结大小
-		DispatchKeyValue(SmokeEnt,"EndSize", g_sSmokeEndSize);
-		//厚度
-		DispatchKeyValue(SmokeEnt,"Rate", g_sRate);
-		//射流长度
-		DispatchKeyValue(SmokeEnt,"JetLength", g_sJetLength);
-		//漩涡
-		DispatchKeyValue(SmokeEnt,"Twist", g_sTwist); 
-		//颜色
-		DispatchKeyValue(SmokeEnt,"RenderColor", g_sSmokeColor); 
-		//透明度
-		DispatchKeyValue(SmokeEnt,"RenderAmt", g_sSmokeAlpha);
-		//材料
-		DispatchKeyValue(SmokeEnt,"SmokeMaterial", "particle/particle_smokegrenade1.vmt");
-			
-		DispatchSpawn(SmokeEnt);
-		AcceptEntityInput(SmokeEnt, "TurnOn");
-		
-		new Handle:pack;
-		CreateDataTimer(SmokeTimer, Timer_KillSmoke, pack);
-		WritePackCell(pack, SmokeEnt);
-		WritePackCell(pack, client);
-		
-		new Float:longerdelay = 0.2 + SmokeTimer;
-		new Handle:pack2;
-		CreateDataTimer(longerdelay, Timer_StopSmoke, pack2);
-		WritePackCell(pack2, SmokeEnt);
-		StopSmoke[client] = false;
-		
-		GetClientAbsOrigin(client, g_pos[client]);
-		CreateTimer(g_iTimerDamage * 1.0, Timer_Damage, GetClientUserId(client), TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+		RemoveEntityRef(cloud.reference);
+		return false;
 	}
+
+	cloud.expiryTimer = CreateTimer(duration, Timer_StopSmoke, cloud.reference, TIMER_FLAG_NO_MAPCHANGE);
+	cloud.damageTimer = CreateTimer(g_fTimerDamage, Timer_Damage, cloud.reference, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+	if (cloud.expiryTimer == null || cloud.damageTimer == null)
+	{
+		delete cloud.expiryTimer;
+		delete cloud.damageTimer;
+		RemoveEntityRef(cloud.reference);
+		return false;
+	}
+
+	g_Clouds.PushArray(cloud, sizeof(cloud));
+	return true;
 }
 
-public Action Timer_Damage(Handle timer, any userid)
+public Action Timer_Damage(Handle timer, int reference)
 {
-	int client = GetClientOfUserId(userid);
-	if (!client || !IsClientInGame(client) || !ZR_IsClientZombie(client) || StopSmoke[client]) 
+	int index = g_Clouds.FindValue(reference);
+	if (index < 0)
+		return Plugin_Stop;
+
+	SmokeCloud cloud;
+	g_Clouds.GetArray(index, cloud, sizeof(cloud));
+	if (EntRefToEntIndex(reference) == INVALID_ENT_REFERENCE)
 	{
+		RemoveCloud(index, cloud);
 		return Plugin_Stop;
 	}
 
-	new Float:pos_t[3];
-	new Float:distance;
-	
-	for (int i = 1; i <= MaxClients; i++) 
+	int client = GetClientFromSerial(cloud.ownerSerial);
+	if (client < 1 || !IsClientInGame(client) || !ZR_IsClientZombie(client))
 	{
-		if (IsClientInGame(i) && ZR_IsClientHuman(i))
+		cloud.damageTimer = null;
+		g_Clouds.SetArray(index, cloud, sizeof(cloud));
+		return Plugin_Stop;
+	}
+
+	float pos[3];
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || !IsPlayerAlive(i) || !ZR_IsClientHuman(i))
+			continue;
+
+		GetClientAbsOrigin(i, pos);
+		if (GetVectorDistance(cloud.center, pos) <= g_iSmokeRadius)
 		{
-			GetClientAbsOrigin(i, pos_t);
-			distance = GetVectorDistance(g_pos[client], pos_t);
-			if(distance <= g_iSmokeRadius)
-			{
-				DealDamage(client,i,g_iSmokeDamage,0,"smoke");
-			}
+			DealDamage(client, i, g_iSmokeDamage);
+			if (g_Clouds.FindValue(reference) < 0)
+				return Plugin_Stop;
 		}
 	}
 	return Plugin_Continue;
 }
 
-stock DealDamage(attacker=0,victim,damage,dmg_type=0,String:weapon[]="")
+void DealDamage(int attacker, int victim, int damage)
 {
-	if(IsValidEdict(victim) && damage>0)
+	if (damage <= 0)
+		return;
+
+	int entity = CreateEntityByName("point_hurt");
+	if (entity == -1)
+		return;
+
+	int reference = EntIndexToEntRef(entity);
+	char originalName[256], targetName[32];
+	GetEntPropString(victim, Prop_Data, "m_iName", originalName, sizeof(originalName));
+	Format(targetName, sizeof(targetName), "__zp_smoke_hurt_%d", victim);
+	DispatchKeyValue(entity, "DamageTarget", targetName);
+	DispatchKeyValueFloat(entity, "Damage", float(damage));
+	DispatchKeyValue(entity, "DamageType", "0");
+	DispatchKeyValue(entity, "classname", "smoke");
+	if (DispatchSpawn(entity))
 	{
-		new String:victimid[64];
-		new String:dmg_type_str[32];
-		IntToString(dmg_type,dmg_type_str,32);
-		new PointHurt = CreateEntityByName("point_hurt");
-		if(PointHurt)
+		int serial = GetClientSerial(victim);
+		DispatchKeyValue(victim, "targetname", targetName);
+		AcceptEntityInput(entity, "Hurt", attacker);
+		if (GetClientFromSerial(serial) == victim && IsClientInGame(victim))
 		{
-			Format(victimid, 64, "victim%d", victim);
-			DispatchKeyValue(victim,"targetname",victimid);
-			DispatchKeyValue(PointHurt,"DamageTarget",victimid);
-			DispatchKeyValueFloat(PointHurt,"Damage",float(damage));
-			DispatchKeyValue(PointHurt,"DamageType",dmg_type_str);
-			if(!StrEqual(weapon,""))
-			{
-				DispatchKeyValue(PointHurt,"classname",weapon);
-			}
-			DispatchSpawn(PointHurt);
-			if(IsClientInGame(attacker))
-				AcceptEntityInput(PointHurt, "Hurt", attacker);
-			else 	
-				AcceptEntityInput(PointHurt, "Hurt", -1);
-				
-			RemoveEdict(PointHurt);
+			char currentName[32];
+			GetEntPropString(victim, Prop_Data, "m_iName", currentName, sizeof(currentName));
+			if (StrEqual(currentName, targetName))
+				DispatchKeyValue(victim, "targetname", originalName);
 		}
 	}
+	RemoveEntityRef(reference);
 }
 
-public Action:Timer_KillSmoke(Handle:timer, Handle:pack)
-{	
-	ResetPack(pack);
-	new SmokeEnt = ReadPackCell(pack);
-	new client = ReadPackCell(pack);
-	StopSmokeEnt(SmokeEnt);
-	StopSmoke[client] = true;
-}
-public Action:Timer_StopSmoke(Handle:timer, Handle:pack)
-{	
-	ResetPack(pack);
-	new SmokeEnt = ReadPackCell(pack);
-	RemoveSmokeEnt(SmokeEnt);
-}
-StopSmokeEnt(target)
+public Action Timer_StopSmoke(Handle timer, int reference)
 {
+	int index = g_Clouds.FindValue(reference);
+	if (index < 0)
+		return Plugin_Stop;
 
-	if (IsValidEntity(target))
+	SmokeCloud cloud;
+	g_Clouds.GetArray(index, cloud, sizeof(cloud));
+	cloud.expiryTimer = null;
+	int entity = EntRefToEntIndex(reference);
+	if (entity != INVALID_ENT_REFERENCE)
 	{
-		AcceptEntityInput(target, "TurnOff");
+		AcceptEntityInput(entity, "TurnOff");
+		cloud.expiryTimer = CreateTimer(0.2, Timer_RemoveSmoke, reference, TIMER_FLAG_NO_MAPCHANGE);
 	}
+
+	if (cloud.expiryTimer != null)
+	{
+		delete cloud.damageTimer;
+		g_Clouds.SetArray(index, cloud, sizeof(cloud));
+	}
+	else
+	{
+		RemoveCloud(index, cloud);
+	}
+	return Plugin_Stop;
 }
-RemoveSmokeEnt(target)
+
+public Action Timer_RemoveSmoke(Handle timer, int reference)
 {
-	if (IsValidEntity(target))
+	int index = g_Clouds.FindValue(reference);
+	if (index >= 0)
 	{
-		AcceptEntityInput(target, "Kill");
+		SmokeCloud cloud;
+		g_Clouds.GetArray(index, cloud, sizeof(cloud));
+		cloud.expiryTimer = null;
+		RemoveCloud(index, cloud);
 	}
+	return Plugin_Stop;
+}
+
+void RemoveCloud(int index, SmokeCloud cloud)
+{
+	g_Clouds.Erase(index);
+	delete cloud.damageTimer;
+	delete cloud.expiryTimer;
+	RemoveEntityRef(cloud.reference);
+}
+
+void RemoveEntityRef(int reference)
+{
+	int entity = EntRefToEntIndex(reference);
+	if (entity != INVALID_ENT_REFERENCE)
+		RemoveEntity(entity);
 }
 
 //检测玩家属性函数
 bool:IsClient(Client, bool:Alive)
 {
-	return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
+	return Client > 0 && Client <= MaxClients && IsClientInGame(Client) && (!Alive || IsPlayerAlive(Client));
 }

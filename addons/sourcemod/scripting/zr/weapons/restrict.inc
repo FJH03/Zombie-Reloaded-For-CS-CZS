@@ -351,10 +351,6 @@ RestrictQuery:RestrictWeapon(bool:restrict, const String:target[], &bool:single 
     {
         single = false;
         
-        // Get all weapons in the given type.
-        new Handle:arrayTypeWeapons;
-        new count = RestrictGetTypeWeapons(typeindex, arrayTypeWeapons);
-        
         // Return proper weapon name.
         RestrictWeaponTypeGetName(typeindex, returntarget, maxlen);
         
@@ -363,7 +359,10 @@ RestrictQuery:RestrictWeapon(bool:restrict, const String:target[], &bool:single 
         {
             return Query_Stopped;
         }
-        
+
+        // Get all weapons in the given type.
+        new Handle:arrayTypeWeapons;
+        new count = RestrictGetTypeWeapons(typeindex, arrayTypeWeapons);
         for (new x = 0; x < count; x++)
         {
             // Get weapon index.
@@ -379,6 +378,7 @@ RestrictQuery:RestrictWeapon(bool:restrict, const String:target[], &bool:single 
             RestrictSetWeaponRestricted(weaponindex, false, restrict);
         }
         
+        CloseHandle(arrayTypeWeapons);
         // Successfully restricted weapon type.
         return Query_Successful;
     }
@@ -598,11 +598,13 @@ stock bool:RestrictIsTypeUniform(bool:restricted, index)
         // If weapon is toggleable and it's not uniform with the given status, then return false.
         if (WeaponsGetToggleable(weaponindex) && RestrictIsWeaponRestricted(weaponindex) != restricted)
         {
+            CloseHandle(arrayTypeWeapons);
             return false;
         }
     }
     
     // All weapons are restricted, so return true.
+    CloseHandle(arrayTypeWeapons);
     return true;
 }
 

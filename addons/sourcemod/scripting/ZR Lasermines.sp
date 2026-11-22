@@ -17,7 +17,7 @@
 			D E F I N E S
 	------------------------------------------------
 */
-#define PLUGIN_VERSION "1.4.2"
+#define PLUGIN_VERSION "1.4.3"
 
 #define MDL_LASER "sprites/laser.vmt"
 #define MDL_MINE "models/props_lab/tpplug.mdl"
@@ -755,6 +755,7 @@ PlantMine(client, Float:activation_delay = 0.0, explode_damage, explode_radius, 
 		new beament = CreateEntityByName("env_beam");
 		if (beament == -1 || !IsValidEdict(beament))
 		{
+			RemoveEntity(ent);
 			LogError("Could not create entity \"env_beam\"");
 			return -1;
 		}
@@ -829,13 +830,18 @@ PlantMine(client, Float:activation_delay = 0.0, explode_damage, explode_radius, 
 		SetEntPropEnt(beament, Prop_Data, "m_hEffectEntity", ent);
 		
 		new Handle:datapack = CreateDataPack();
-		WritePackCell(datapack, beament);
-		WritePackCell(datapack, ent);
+		WritePackCell(datapack, EntIndexToEntRef(beament));
+		WritePackCell(datapack, EntIndexToEntRef(ent));
 		WritePackCell(datapack, color[0]);
 		WritePackCell(datapack, color[1]);
 		WritePackCell(datapack, color[2]);
 		WritePackString(datapack, start);
-		CreateTimer(activation_delay, OnActivateLaser, datapack, TIMER_FLAG_NO_MAPCHANGE|TIMER_HNDL_CLOSE);
+		if (CreateTimer(activation_delay, OnActivateLaser, datapack, TIMER_FLAG_NO_MAPCHANGE|TIMER_HNDL_CLOSE) == null)
+		{
+			delete datapack;
+			AcceptEntityInput(ent, "KillHierarchy");
+			return -1;
+		}
 		
 		SDKHook(ent, SDKHook_OnTakeDamage, OnTakeDamage);
 		
@@ -886,14 +892,14 @@ public Action:OnActivateLaser(Handle:timer, any:hDataPack)
 {
 	ResetPack(hDataPack);
 	decl String:start[30], String:tmp[200], color[3];
-	new beament = ReadPackCell(hDataPack);
-	new ent = ReadPackCell(hDataPack);
+	new beament = EntRefToEntIndex(ReadPackCell(hDataPack));
+	new ent = EntRefToEntIndex(ReadPackCell(hDataPack));
 	color[0] = ReadPackCell(hDataPack);
 	color[1] = ReadPackCell(hDataPack);
 	color[2] = ReadPackCell(hDataPack);
 	ReadPackString(hDataPack, start, sizeof(start));
 	
-	if (!IsValidEdict(beament) || !IsValidEdict(ent))
+	if (beament == INVALID_ENT_REFERENCE || ent == INVALID_ENT_REFERENCE)
 	{
 		return Plugin_Stop;
 	}

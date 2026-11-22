@@ -366,7 +366,7 @@ InfectOnRoundStart()
 {
     // Stop infect timers if running.
     ZREndTimer(tInfect);
-    ZREndTimer(tInfectCountdown);
+    InfectStopCountdown();
     
     // Tell plugin there are no zombies.
     g_bZombieSpawned = false;
@@ -379,7 +379,7 @@ InfectOnRoundFreezeEnd()
 {
     // Stop infect timers if running.
     ZREndTimer(tInfect);
-    ZREndTimer(tInfectCountdown);
+    InfectStopCountdown();
     
     // If the zombie has spawned already (had to be through admin) then stop.
     if (InfectHasZombieSpawned())
@@ -403,9 +403,6 @@ InfectOnRoundFreezeEnd()
     new bool:countdown = GetConVarBool(g_hCvarsList[CVAR_INFECT_MZOMBIE_COUNTDOWN]);
     if (countdown && randomtime > 1.0)
     {
-        // Stop old countdown timer, if it exists.
-        InfectStopCountdown();
-        
         // Store the time until infection, and initialize the counter.
         hInfectCountdownData = CreateDataPack();
         WritePackFloat(hInfectCountdownData, randomtime);
@@ -424,7 +421,7 @@ InfectOnRoundEnd()
 {
     // Stop infect timers if running.
     ZREndTimer(tInfect);
-    ZREndTimer(tInfectCountdown);
+    InfectStopCountdown();
     
     // x = client index.
     for (new x = 1; x <=  MaxClients; x++)

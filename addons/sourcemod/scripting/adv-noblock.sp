@@ -3,7 +3,7 @@
 #include <sourcemod>
 #include <sdktools>
 
-#define PLUGIN_VERSION "2.0"
+#define PLUGIN_VERSION "2.0.1"
 
 public Plugin:myinfo = 
 {
@@ -26,16 +26,29 @@ new Float:g_noblockTime;
 new Handle:sm_noblock_nades;
 new Handle:sm_noblock_hostages;
 new Handle:sm_noblock_time;
-new Handle:g_hTimer[MAXPLAYERS+1];
+
+#define COLLISION_GROUP_DEBRIS_TRIGGER 2
+#define COLLISION_GROUP_PLAYER 5
+
+enum struct NoBlockRequest
+{
+	Handle timer;
+	int targetSerial;
+	bool active;
+}
+
+NoBlockRequest g_Request[MAXPLAYERS + 1];
+int g_TargetPasses[MAXPLAYERS + 1];
+int g_TargetCollisionGroup[MAXPLAYERS + 1];
 
 #define cDefault 0x01
 #define cLightGreen 0x03
 
 public OnPluginStart()
 {
-	g_offsCollisionGroup = FindSendPropOffs("CBaseEntity", "m_CollisionGroup");
+	g_offsCollisionGroup = FindSendPropInfo("CBaseEntity", "m_CollisionGroup");
 	
-	if (g_offsCollisionGroup == -1)
+	if (g_offsCollisionGroup <= 0)
 	{
 		SetFailState("[NoBlock] Failed to get offset for CBaseEntity::m_CollisionGroup.");
 	}
@@ -49,6 +62,8 @@ public OnPluginStart()
 	HookConVarChange(sm_noblock_hostages, OnConVarChange);
 	
 	sm_noblock_time = CreateConVar("sm_noblock_time", "2", "No blocking only for that time");
+	HookEvent("player_death", Event_PlayerDeath);
+	HookEvent("round_end", Event_RoundEnd);
 	
 	AutoExecConfig(true, "adv-noblock");
 	CvarsChanged();
@@ -85,7 +100,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			if (!IsFakeClient(client)) {
 				int Target = GetClientAimTarget(client, true);   // 获取准心目标实体
 				if (IsClient(Target, true)) {
-					noblock(client, Target); 
+					RequestNoBlock(client, Target);
 				}
 			}
 		}
@@ -109,35 +124,113 @@ public OnEntityCreated(entity, const String:classname[])
 	}
 }
 
-noblock(client, Target) {
-	if (g_hTimer[client] != INVALID_HANDLE) {
-		CloseHandle(g_hTimer[client]);
-		g_hTimer[client] = INVALID_HANDLE;
-		
-		UnblockEntity(Target);
-		PrintToChat(Target, "%c[NoBlock] %c%N 尝试穿透你！", cLightGreen, cDefault, client);
+void RequestNoBlock(int client, int target)
+{
+	int serial = GetClientSerial(target);
+	bool sameTarget = g_Request[client].targetSerial == serial;
+	bool active = sameTarget && g_Request[client].active;
+	Handle timer = CreateTimer(g_noblockTime, Timer_PlayerUnblock, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+	if (timer == null)
+		return;
+
+	if (sameTarget)
+		delete g_Request[client].timer;
+	else
+		EndRequest(client, false);
+
+	g_Request[client].timer = timer;
+	g_Request[client].targetSerial = serial;
+	if (sameTarget && !active)
+	{
+		int collisionGroup = GetEntData(target, g_offsCollisionGroup, 4);
+		if (g_TargetPasses[target] == 0 || collisionGroup != COLLISION_GROUP_DEBRIS_TRIGGER)
+		{
+			g_TargetCollisionGroup[target] = collisionGroup;
+			UnblockEntity(target);
+		}
+		g_TargetPasses[target]++;
+		g_Request[client].active = true;
+		PrintToChat(target, "%c[NoBlock] %c%N 尝试穿透你！", cLightGreen, cDefault, client);
 	}
-	
-	new encodedData = (client & 0xFF) | ((Target & 0xFF) << 8);
-	g_hTimer[client] = CreateTimer(g_noblockTime, Timer_PlayerUnblock, encodedData);
 }
 
-public Action:Timer_PlayerUnblock(Handle:timer, any encodedData)
+public Action Timer_PlayerUnblock(Handle timer, int serial)
 {
-	new client = encodedData & 0xFF; 
-	new Target = (encodedData >> 8) & 0xFF; 
-	g_hTimer[client] = INVALID_HANDLE;			
-	if ( !IsClient(client, true) || !IsClient(client, true))
+	int client = GetClientFromSerial(serial);
+	if (client > 0 && g_Request[client].timer == timer)
+		EndRequest(client, true);
+	return Plugin_Stop;
+}
+
+void EndRequest(int client, bool notify)
+{
+	if (g_Request[client].timer == null)
+		return;
+
+	delete g_Request[client].timer;
+	int target = GetClientFromSerial(g_Request[client].targetSerial);
+	bool active = g_Request[client].active;
+	g_Request[client].targetSerial = 0;
+	g_Request[client].active = false;
+
+	if (!active || target < 1)
+		return;
+	if (--g_TargetPasses[target] != 0 || !IsClientInGame(target))
+		return;
+
+	if (GetEntData(target, g_offsCollisionGroup, 4) == COLLISION_GROUP_DEBRIS_TRIGGER)
+		SetEntData(target, g_offsCollisionGroup, g_TargetCollisionGroup[target], 4, true);
+
+	if (notify && IsClient(client, true) && IsClient(target, true))
 	{
-		return Plugin_Continue;
+		PrintToChat(client, "%c[NoBlock] %c现在你不能穿透 %N 了！", cLightGreen, cDefault, target);
+		PrintToChat(target, "%c[NoBlock] %c现在你不可被穿透！", cLightGreen, cDefault);
 	}
-	
-	PrintToChat(client, "%c[NoBlock] %c现在你不能穿透 %N 了！", cLightGreen, cDefault, Target);
-	
-	BlockEntity(Target);
-	PrintToChat(Target, "%c[NoBlock] %c现在你不可被穿透！", cLightGreen, cDefault);
-	
-	return Plugin_Continue;
+}
+
+void EndPlayerRequests(int client)
+{
+	int serial = GetClientSerial(client);
+	EndRequest(client, false);
+	for (int other = 1; other <= MaxClients; other++)
+	{
+		if (g_Request[other].targetSerial == serial)
+			EndRequest(other, false);
+	}
+	g_TargetPasses[client] = 0;
+}
+
+void EndAllRequests()
+{
+	for (int client = 1; client <= MaxClients; client++)
+		EndRequest(client, false);
+}
+
+public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (client > 0)
+		EndPlayerRequests(client);
+}
+
+public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+{
+	EndAllRequests();
+}
+
+public void OnClientDisconnect(int client)
+{
+	EndPlayerRequests(client);
+}
+
+public void OnMapEnd()
+{
+	EndAllRequests();
+}
+
+public void OnPluginEnd()
+{
+	EndAllRequests();
 }
 
 UnblockHostages() {
@@ -180,18 +273,18 @@ BlockHostages() {
 
 BlockEntity(client)
 {
-	SetEntData(client, g_offsCollisionGroup, 5, 4, true);
+	SetEntData(client, g_offsCollisionGroup, COLLISION_GROUP_PLAYER, 4, true);
 }
 
 UnblockEntity(client)
 {
-	SetEntData(client, g_offsCollisionGroup, 2, 4, true);
+	SetEntData(client, g_offsCollisionGroup, COLLISION_GROUP_DEBRIS_TRIGGER, 4, true);
 }
 
 //检测玩家属性函数
 bool:IsClient(Client, bool:Alive)
 {
-	return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
+	return Client > 0 && Client <= MaxClients && IsClientInGame(Client) && (!Alive || IsPlayerAlive(Client));
 }
 
 

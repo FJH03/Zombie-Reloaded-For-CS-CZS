@@ -29,6 +29,7 @@
  * Keeps track of if a client has been authorized as an admin.
  */
 new bool:g_bAdminChecked[MAXPLAYERS + 1];
+new Handle:g_hClassInstantChangeTimer[MAXPLAYERS + 1];
 
 /* ------------------------------------
  *
@@ -186,6 +187,7 @@ ClassOnClientDisconnect(client)
 {
     // Disable class attributes with timers.
     ClassHealthRegenStop(client);
+    ClassCancelInstantChange(client);
     
     // Reset previously selected class indexes.
     ClassResetNextIndexes(client);
@@ -295,11 +297,9 @@ ClassOnClientSpawn(client)
     new Float:instantspawn = GetConVarFloat(g_hCvarsList[CVAR_CLASSES_CHANGE_TIMELIMIT]);
     if (instantspawn > 0)
     {
-        // Allow instant class change.
-        ClassAllowInstantChange[client] = true;
-        
         // Create timer to disable instant change.
-        CreateTimer(instantspawn, Event_ClassDisableInstantSpawn, client, TIMER_FLAG_NO_MAPCHANGE);
+        g_hClassInstantChangeTimer[client] = CreateTimer(instantspawn, Event_ClassDisableInstantSpawn, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+        ClassAllowInstantChange[client] = g_hClassInstantChangeTimer[client] != INVALID_HANDLE;
     }
     else
     {
@@ -335,6 +335,7 @@ ClassOnClientDeath(client)
 {
     // Disable class attributes with timers.
     ClassHealthRegenStop(client);
+    ClassCancelInstantChange(client);
     
     // Set client's FOV back to normal.
     ToolsSetClientDefaultFOV(client, 90);
@@ -364,7 +365,7 @@ ClassOnClientInfected(client, bool:motherzombie = false)
     ClassHealthRegenStop(client);
     
     // Make sure the player is not allowed to instantly change class.
-    ClassAllowInstantChange[client] = false;
+    ClassCancelInstantChange(client);
     
     // Check if it's a mother zombie.
     if (motherzombie)
@@ -477,11 +478,23 @@ ClassOnClientInfected(client, bool:motherzombie = false)
     ClassApplyAttributes(client, motherzombie);
 }
 
+ClassCancelInstantChange(client)
+{
+    ZREndTimer(g_hClassInstantChangeTimer[client]);
+    ClassAllowInstantChange[client] = false;
+}
+
 /**
  * Timer callback for disabling instant class change setting on a client.
  */
-public Action:Event_ClassDisableInstantSpawn(Handle:timer, any:client)
+public Action:Event_ClassDisableInstantSpawn(Handle:timer, any:serial)
 {
-    // Disable instant class change.
+    new client = GetClientFromSerial(serial);
+    if (!client || g_hClassInstantChangeTimer[client] != timer)
+    {
+        return;
+    }
+
+    g_hClassInstantChangeTimer[client] = INVALID_HANDLE;
     ClassAllowInstantChange[client] = false;
 }

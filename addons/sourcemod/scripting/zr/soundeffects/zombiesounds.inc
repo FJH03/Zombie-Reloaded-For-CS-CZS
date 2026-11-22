@@ -87,31 +87,12 @@ new Handle:g_hSEffectsCommandTimer[MAXPLAYERS + 1];
  */
 ZombieSoundsClientInit(client)
 {
-    // Reset timer handle.
-    tSEffectsMoan[client] = INVALID_HANDLE;
-    
-    // Reset command counter and make sure there's no timer running.
-    g_SEffectsCommandCount[client] = 0;
-    ZREndTimer(g_hSEffectsCommandTimer[client]);
+    ZombieSoundsStopClientTimers(client);
 }
 
-/**
- * Client is spawning into the game.
- * 
- * @param client    The client index.
- */
-ZombieSoundsOnClientSpawn(client)
+ZombieSoundsStopClientTimers(client)
 {
-    // If timer is running, kill it.
-    if (tSEffectsMoan[client] != INVALID_HANDLE)
-    {
-        KillTimer(tSEffectsMoan[client]);
-    }
-    
-    // Reset timer handle.
-    tSEffectsMoan[client] = INVALID_HANDLE;
-    
-    // Reset command counter and kill timer.
+    ZREndTimer(tSEffectsMoan[client]);
     g_SEffectsCommandCount[client] = 0;
     ZREndTimer(g_hSEffectsCommandTimer[client]);
 }
@@ -123,19 +104,8 @@ ZombieSoundsOnClientSpawn(client)
  */
 ZombieSoundsOnClientDeath(client)
 {
-    // If timer is running, kill it.
-    if (tSEffectsMoan[client] != INVALID_HANDLE)
-    {
-        KillTimer(tSEffectsMoan[client]);
-    }
-    
-    // Reset timer handle.
-    tSEffectsMoan[client] = INVALID_HANDLE;
-    
-    // Reset command counter and kill timer.
-    g_SEffectsCommandCount[client] = 0;
-    ZREndTimer(g_hSEffectsCommandTimer[client]);
-    
+    ZombieSoundsStopClientTimers(client);
+
     // If player isn't a zombie, then stop.
     if (!InfectIsClientInfected(client))
     {
@@ -194,6 +164,8 @@ ZombieSoundsOnClientHurt(client)
  */
 ZombieSoundsOnClientInfected(client)
 {
+    ZREndTimer(tSEffectsMoan[client]);
+
     // If interval is set to 0, then stop.
     new Float:interval = GetConVarFloat(g_hCvarsList[CVAR_SEFFECTS_MOAN]);
     if (!interval)
@@ -201,14 +173,8 @@ ZombieSoundsOnClientInfected(client)
         return;
     }
     
-    // If timer is currently running, kill it.
-    if (tSEffectsMoan[client] != INVALID_HANDLE)
-    {
-        KillTimer(tSEffectsMoan[client]);
-    }
-    
     // Start repeating timer.
-    tSEffectsMoan[client] = CreateTimer(interval, ZombieSoundsMoanTimer, client, TIMER_FLAG_NO_MAPCHANGE|TIMER_REPEAT);
+    tSEffectsMoan[client] = CreateTimer(interval, ZombieSoundsMoanTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
 }
 
 /**
@@ -216,8 +182,10 @@ ZombieSoundsOnClientInfected(client)
  */
 ZombieSoundsOnRoundEnd()
 {
-    ZombieSoundsResetCmdCounters();
-    ZombieSoundsResetCmdTimers();
+    for (new client = 1; client <= MAXPLAYERS; client++)
+    {
+        ZombieSoundsStopClientTimers(client);
+    }
 }
 
 ZombieSoundsOnMapEnd()
@@ -298,12 +266,18 @@ bool:ZombieSoundsGetRandomSound(String:sound[], ZombieSounds:soundtype)
  * Timer callback, repeats a moaning sound on zombies.
  * 
  * @param timer     The timer handle.
- * @param client    The client index.
+ * @param serial    The client connection serial.
  */
-public Action:ZombieSoundsMoanTimer(Handle:timer, any:client)
+public Action:ZombieSoundsMoanTimer(Handle:timer, any:serial)
 {
+    new client = GetClientFromSerial(serial);
+    if (!client || tSEffectsMoan[client] != timer)
+    {
+        return Plugin_Stop;
+    }
+
     // If client isn't in-game or client is no longer a zombie, then stop.
-    if (!IsClientInGame(client) || !InfectIsClientInfected(client))
+    if (!IsClientInGame(client) || !IsPlayerAlive(client) || !InfectIsClientInfected(client))
     {
         // Reset timer handle.
         tSEffectsMoan[client] = INVALID_HANDLE;
@@ -367,30 +341,8 @@ ZombieSoundsCmdTimerCheck(client)
         // Only create timer if time span is enabled.
         if (timespan > 0.0)
         {
-            g_hSEffectsCommandTimer[client] = CreateTimer(timespan, ZombieSoundsCmdTimer, client, TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
+            g_hSEffectsCommandTimer[client] = CreateTimer(timespan, ZombieSoundsCmdTimer, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE | TIMER_REPEAT);
         }
-    }
-}
-
-/**
- * Resets all command counters.
- */
-ZombieSoundsResetCmdCounters()
-{
-    for (new client = 0; client <= MAXPLAYERS; client++)
-    {
-        g_SEffectsCommandCount[client] = 0;
-    }
-}
-
-/**
- * Stops all command counter timers.
- */
-ZombieSoundsResetCmdTimers()
-{
-    for (new client = 0; client <= MAXPLAYERS; client++)
-    {
-        ZREndTimer(g_hSEffectsCommandTimer[client]);
     }
 }
 
@@ -452,7 +404,14 @@ public Action:ZombieSoundsMoanCommand(client, argc)
 /**
  * Command counter reset timer.
  */
-public Action:ZombieSoundsCmdTimer(Handle:timer, any:client)
+public Action:ZombieSoundsCmdTimer(Handle:timer, any:serial)
 {
+    new client = GetClientFromSerial(serial);
+    if (!client || g_hSEffectsCommandTimer[client] != timer)
+    {
+        return Plugin_Stop;
+    }
+
     g_SEffectsCommandCount[client] = 0;
+    return Plugin_Continue;
 }

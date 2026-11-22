@@ -10,20 +10,31 @@ public Plugin:myinfo =
 	name = "[ZP] human_c4",
 	author = "[CNSR] FJH_03",
 	description = "人类放置C4炸弹",
-	version = "3.2",
+	version = "3.2.1",
 	url = "<-url->"
 };
 
-int g_iC4Ent = -1,
-	g_iTimerExplosion,
+int g_iTimerExplosion,
 	g_iBombDamage,
 	g_iBombRadius,
 	g_iIgniteTime,
 	g_iPos;
 	
-bool g_bGC4Used = false,
-	g_bPublicMsg,
+bool g_bPublicMsg,
 	g_haveHumanC4[MAXPLAYERS + 1];
+
+int g_C4Ref = INVALID_ENT_REFERENCE;
+int g_C4Owner;
+Handle g_BeepTimer, g_BoomTimer;
+bool g_AwardRegistered;
+
+enum struct ExplosionParticle
+{
+	int reference;
+	Handle timer;
+}
+
+ArrayList g_Particles;
 	
 Handle	g_cTimerExplosion, g_cBombDamage, g_cBombRadius,
 	g_cIgniteTime, g_cPublicMsg, g_cPos;	
@@ -38,6 +49,7 @@ Handle	g_cTimerExplosion, g_cBombDamage, g_cBombRadius,
 // dont touch
 public OnPluginStart()
 {
+	g_Particles = new ArrayList(sizeof(ExplosionParticle));
 	CreateTimer(0.1, Lateload);
 	
 	g_cTimerExplosion 		= CreateConVar("zp_c4bomb_exp_timer", 		"15", 		"炸弹爆炸前的秒数（默认 15）");
@@ -54,9 +66,16 @@ public OnPluginStart()
 	HookConVarChange(g_cBombRadius, eConvarChanged);
 	HookConVarChange(g_cIgniteTime, eConvarChanged);
 	HookConVarChange(g_cPublicMsg, eConvarChanged);
+	HookConVarChange(g_cPos, eConvarChanged);
 	
-	HookEvent("round_end", Event_OnRoundEnd);
-	HookEvent("round_start", Event_OnRoundStart);
+	HookEvent("round_end", Event_ResetRound);
+	HookEvent("round_start", Event_ResetRound);
+
+	for (int client = 1; client <= MaxClients; client++)
+	{
+		if (IsClientInGame(client))
+			SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	}
 
 	AutoExecConfig(true, "zombiereloaded/zp_human_c4");
 	CvarsChanged();
@@ -87,7 +106,21 @@ public void OnMapStart()
 	PrecacheSound("weapons/c4/c4_explode1.wav");
 	PrecacheSound("weapons/c4/c4_beep3.wav");
 	PrecacheSound("weapons/c4/c4_initiate.wav");
-	PrecacheModel("weapons/w_c4_planted.mdl");
+	PrecacheModel("models/weapons/w_c4_planted.mdl");
+}
+
+public void OnMapEnd()
+{
+	ResetRound();
+	ClearExplosionParticles();
+}
+
+public void OnPluginEnd()
+{
+	ResetRound();
+	ClearExplosionParticles();
+	if (g_AwardRegistered && GetFeatureStatus(FeatureType_Native, "ZP_RemoveAward") == FeatureStatus_Available)
+		ZP_RemoveAward(AWARDNAME);
 }
 
 public void OnClientPutInServer(int client) 
@@ -96,9 +129,16 @@ public void OnClientPutInServer(int client)
 	g_haveHumanC4[client] = false;
 }
 
+public void OnClientDisconnect(int client)
+{
+	g_haveHumanC4[client] = false;
+	if (g_C4Owner != 0 && g_C4Owner == GetClientSerial(client))
+		ClearC4();
+}
+
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype) 
 {
-	if(g_iIgniteTime >= 1)
+	if(g_iIgniteTime >= 1 && inflictor > MaxClients && IsValidEntity(inflictor))
 	{
 		char sExplosion[32];
 		GetEntityClassname(inflictor, sExplosion, sizeof(sExplosion));
@@ -116,12 +156,14 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	return Plugin_Continue;
 }
 
-public Action:Lateload(Handle:timer)
+public Action Lateload(Handle timer)
 {
 	LoadTranslations(TRANSLATIONS); // translations to the local plugin
 	ZP_LoadTranslations(TRANSLATIONS); // sent translations to the main plugin
 	
 	ZP_AddAward(AWARDNAME, PRICE, AWARDTEAM); // add award to the main plugin
+	g_AwardRegistered = true;
+	return Plugin_Stop;
 }
 
 public ZP_OnAwardBought( client, const String:awardbought[])
@@ -134,32 +176,30 @@ public ZP_OnAwardBought( client, const String:awardbought[])
 	}
 }
 
-public Action Event_OnRoundEnd(Event event, char[] name, bool dontBroadcast)
+public void Event_ResetRound(Event event, const char[] name, bool dontBroadcast)
 {
-	g_bGC4Used = false;
-	for (int i = 1; i <= MaxClients; i++) 
-	{
-		if (IsClientInGame(i))
-		{
-			g_haveHumanC4[i] = false;
-		}
-	}
-	
-	return Plugin_Continue;
+	ResetRound();
+	if (StrEqual(name, "round_start"))
+		ClearExplosionParticles();
 }
 
-public Action Event_OnRoundStart(Event event, char[] name, bool dontBroadcast)
+void ResetRound()
 {
-	g_bGC4Used = false;
-	for (int i = 1; i <= MaxClients; i++) 
+	ClearC4();
+	for (int i = 1; i <= MaxClients; i++)
+		g_haveHumanC4[i] = false;
+}
+
+void ClearExplosionParticles()
+{
+	ExplosionParticle particle;
+	for (int i = g_Particles.Length - 1; i >= 0; i--)
 	{
-		if (IsClientInGame(i))
-		{
-			g_haveHumanC4[i] = false;
-		}
+		g_Particles.GetArray(i, particle, sizeof(particle));
+		delete particle.timer;
+		RemoveEntityRef(particle.reference);
 	}
-	
-	return Plugin_Continue;
+	g_Particles.Clear();
 }
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
@@ -194,15 +234,32 @@ public Action Command_C4(int client, int args)
 		return Plugin_Handled;
 	}
 
-	if(g_bGC4Used)
+	if (g_C4Ref != INVALID_ENT_REFERENCE && EntRefToEntIndex(g_C4Ref) == INVALID_ENT_REFERENCE)
+		ClearC4();
+
+	if(g_C4Ref != INVALID_ENT_REFERENCE)
 	{	
 		PrintToChat(client, "\x01\x03[\x04SM_Franug-ZombiePlague\x03]\x01 %t", "wait another c4 explode");
 		return Plugin_Handled;
 	}
 
-	SpawnC4(client);
+	g_C4Ref = SpawnC4(client);
+	if (g_C4Ref == INVALID_ENT_REFERENCE)
+		return Plugin_Handled;
+
+	g_C4Owner = GetClientSerial(client);
+	DataPack bomb;
+	g_BoomTimer = CreateDataTimer(float(g_iTimerExplosion), Timer_Boom, bomb, TIMER_FLAG_NO_MAPCHANGE);
+	if (g_BoomTimer == null)
+	{
+		delete bomb;
+		ClearC4();
+		return Plugin_Handled;
+	}
+	bomb.WriteCell(g_C4Ref);
+	bomb.WriteCell(g_C4Owner);
+	g_BeepTimer = CreateTimer(1.0, Timer_Beep, g_C4Ref, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 	g_haveHumanC4[client] = false;
-	g_bGC4Used = true;
 
 	if(g_bPublicMsg)
 	{
@@ -213,104 +270,134 @@ public Action Command_C4(int client, int args)
 	GetClientEyePosition(client, fEyePos);
 	EmitAmbientSound("weapons/c4/c4_initiate.wav", fEyePos, client);
 
-	CreateTimer(1.0, Timer_Beep, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
-	CreateTimer(g_iTimerExplosion * 1.0, Timer_Boom, GetClientUserId(client));
 	return Plugin_Handled;
 }
 
-//---------------------------------------
-// Purpose: Timers
-//---------------------------------------
-
-
-public Action Timer_Beep(Handle timer)
+void ClearC4()
 {
-	static int iBeep = 0;
-	int m_iEnt = EntRefToEntIndex(g_iC4Ent);
- 
-	if (iBeep > g_iTimerExplosion) 
+	delete g_BeepTimer;
+	delete g_BoomTimer;
+	int reference = g_C4Ref;
+	g_C4Ref = INVALID_ENT_REFERENCE;
+	g_C4Owner = 0;
+	RemoveEntityRef(reference);
+}
+
+public Action Timer_Beep(Handle timer, int reference)
+{
+	if (timer != g_BeepTimer)
+		return Plugin_Stop;
+
+	int entity = EntRefToEntIndex(reference);
+	if (entity == INVALID_ENT_REFERENCE)
 	{
-		iBeep = 0;
+		g_BeepTimer = null;
+		ClearC4();
 		return Plugin_Stop;
 	}
-	
-	if(IsValidEntity(m_iEnt))
-	{
-		float fC4Possition[3];
-		GetEntPropVector(m_iEnt, Prop_Send, "m_vecOrigin", fC4Possition);
-		EmitAmbientSound("weapons/c4/c4_beep3.wav", fC4Possition, m_iEnt);
-	}
-	iBeep++;
-
+	float origin[3];
+	GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+	EmitAmbientSound("weapons/c4/c4_beep3.wav", origin, entity);
 	return Plugin_Continue;
 }
 
-public Action Timer_Boom(Handle timer, any userid)
+public Action Timer_Boom(Handle timer, DataPack bomb)
 {
-	int client = GetClientOfUserId(userid);
-	if (!client || !IsClientInGame(client)) 
+	if (timer != g_BoomTimer)
+		return Plugin_Stop;
+
+	bomb.Reset();
+	int entity = EntRefToEntIndex(bomb.ReadCell());
+	int client = GetClientFromSerial(bomb.ReadCell());
+	float origin[3];
+	if (entity != INVALID_ENT_REFERENCE)
+		GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+
+	g_BoomTimer = null;
+	ClearC4();
+
+	if (entity == INVALID_ENT_REFERENCE || client < 1 || !IsClientInGame(client))
+		return Plugin_Stop;
+
+	int explosion = CreateEntityByName("env_explosion");
+	if (explosion == -1)
+		return Plugin_Stop;
+
+	int reference = EntIndexToEntRef(explosion);
+	SetEntProp(explosion, Prop_Data, "m_spawnflags", 16384);
+	SetEntProp(explosion, Prop_Data, "m_iMagnitude", g_iBombDamage);
+	SetEntProp(explosion, Prop_Data, "m_iRadiusOverride", g_iBombRadius);
+	TeleportEntity(explosion, origin, NULL_VECTOR, NULL_VECTOR);
+	if (!DispatchSpawn(explosion))
 	{
-		return Plugin_Handled;
+		RemoveEntityRef(reference);
+		return Plugin_Stop;
+	}
+	ActivateEntity(explosion);
+	SetEntPropEnt(explosion, Prop_Send, "m_hOwnerEntity", client);
+	SpawnExplosionParticle(origin);
+	EmitSoundToAll("weapons/c4/c4_explode1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 1.0);
+	if (!AcceptEntityInput(explosion, "Explode"))
+		RemoveEntityRef(reference);
+
+	return Plugin_Stop;
+}
+
+void SpawnExplosionParticle(const float origin[3])
+{
+	int entity = CreateEntityByName("info_particle_system");
+	if (entity == -1)
+		return;
+
+	ExplosionParticle particle;
+	particle.reference = EntIndexToEntRef(entity);
+	DispatchKeyValue(entity, "effect_name", "explosion_c4_500_fallback");
+	TeleportEntity(entity, origin, NULL_VECTOR, NULL_VECTOR);
+	if (!DispatchSpawn(entity))
+	{
+		RemoveEntityRef(particle.reference);
+		return;
+	}
+	ActivateEntity(entity);
+	if (!AcceptEntityInput(entity, "Start"))
+	{
+		RemoveEntityRef(particle.reference);
+		return;
 	}
 
-	int m_iEnt = EntRefToEntIndex(g_iC4Ent);
-	int iExplIndex = CreateEntityByName("env_explosion");
-	int iParticleIndex = CreateEntityByName("info_particle_system");
+	particle.timer = CreateTimer(5.0, Timer_RemoveParticle, particle.reference, TIMER_FLAG_NO_MAPCHANGE);
+	if (particle.timer != null)
+		g_Particles.PushArray(particle, sizeof(particle));
+	else
+		RemoveEntityRef(particle.reference);
+}
 
-	if(IsValidEntity(m_iEnt))
-	{
-		float fExploOrigin[3];
-		GetEntPropVector(m_iEnt, Prop_Send, "m_vecOrigin", fExploOrigin);
+public Action Timer_RemoveParticle(Handle timer, int reference)
+{
+	int index = g_Particles.FindValue(reference);
+	if (index >= 0)
+		g_Particles.Erase(index);
+	RemoveEntityRef(reference);
+	return Plugin_Stop;
+}
 
-		if (iExplIndex != -1 && iParticleIndex != -1)
-		{
-			DispatchKeyValue(iParticleIndex, "effect_name", "explosion_c4_500_fallback");
-		
-			SetEntProp(iExplIndex, Prop_Data, "m_spawnflags", 16384);
-			SetEntProp(iExplIndex, Prop_Data, "m_iMagnitude", g_iBombDamage);
-			SetEntProp(iExplIndex, Prop_Data, "m_iRadiusOverride", g_iBombRadius);
-		
-			TeleportEntity(iExplIndex, fExploOrigin, NULL_VECTOR, NULL_VECTOR);
-			TeleportEntity(iParticleIndex, fExploOrigin, NULL_VECTOR, NULL_VECTOR);
-			
-			DispatchSpawn(iExplIndex);
-			DispatchSpawn(iParticleIndex);
-
-			ActivateEntity(iExplIndex);
-			ActivateEntity(iParticleIndex);
-			
-			
-			SetEntPropEnt(iExplIndex, Prop_Send, "m_hOwnerEntity", client);
-			AcceptEntityInput(iParticleIndex, "Start");
-			
-
-			EmitSoundToAll("weapons/c4/c4_explode1.wav", SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL, SND_NOFLAGS, 1.0);
-
-			AcceptEntityInput(iExplIndex, "Explode");
-		}
-	}
-
-	if (g_iC4Ent != INVALID_ENT_REFERENCE)
-	{
-		if(IsValidEntity(m_iEnt))
-			AcceptEntityInput(m_iEnt, "Kill");
-		g_iC4Ent = INVALID_ENT_REFERENCE;
-	}
-	
-	g_bGC4Used = false;
-	
-	
-	return Plugin_Continue;
+void RemoveEntityRef(int reference)
+{
+	int entity = EntRefToEntIndex(reference);
+	if (entity != INVALID_ENT_REFERENCE)
+		RemoveEntity(entity);
 }
 
 //---------------------------------------
 // Purpose: Spawn C4 bomb
 //---------------------------------------
 
-void SpawnC4(int client) 
+int SpawnC4(int client)
 {
-	g_iC4Ent = EntIndexToEntRef(CreateEntityByName("prop_dynamic_override"));
-	int m_iEnt = EntRefToEntIndex(g_iC4Ent);
+	int m_iEnt = CreateEntityByName("prop_dynamic_override");
+	if (m_iEnt == -1)
+		return INVALID_ENT_REFERENCE;
+	int reference = EntIndexToEntRef(m_iEnt);
 
 	DispatchKeyValue(m_iEnt, "model", "models/weapons/w_c4_planted.mdl"); 
 	DispatchKeyValue(m_iEnt, "spawnflags", "256"); 
@@ -321,13 +408,18 @@ void SpawnC4(int client)
 	GetClientEyePosition(client, fPosition);
 	fPosition[2] -= g_iPos;
  
-	DispatchSpawn(m_iEnt); 
+	if (!DispatchSpawn(m_iEnt))
+	{
+		RemoveEntityRef(reference);
+		return INVALID_ENT_REFERENCE;
+	}
 
 	TeleportEntity(m_iEnt, fPosition, NULL_VECTOR, NULL_VECTOR);
+	return reference;
 }
 
 //检测玩家属性函数
 bool:IsClient(Client, bool:Alive)
 {
-	return Client <= MaxClients && IsClientConnected(Client) && IsClientInGame(Client) && (Alive && IsPlayerAlive(Client));
+	return Client > 0 && Client <= MaxClients && IsClientInGame(Client) && (!Alive || IsPlayerAlive(Client));
 }

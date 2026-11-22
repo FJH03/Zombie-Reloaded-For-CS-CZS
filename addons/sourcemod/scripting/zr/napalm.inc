@@ -203,7 +203,7 @@ NapalmOnWeaponFire(client, const String:weapon[])
     }
     
     // Wait .1 seconds.
-    CreateTimer(0.1, NapalmIgniteGrenade);
+    CreateTimer(0.1, NapalmIgniteGrenade, _, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 /**
