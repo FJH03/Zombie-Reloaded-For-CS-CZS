@@ -697,7 +697,7 @@
 
 	"Weapons menu zmarket loadout nvgs"
 	{
-		"chi"		夜视仪： {1}"
+		"chi"		"夜视仪： {1}"
 	}
 
 	"Weapons menu zmarket loadout empty"
