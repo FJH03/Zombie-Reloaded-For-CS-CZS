@@ -3,13 +3,14 @@
 #include <sdktools>
 #include <cstrike>
 #include <franug_zp>
+#include <zombiereloaded>
 
 public Plugin:myinfo =
 {
 	name = "[ZP] infiniteammo",
 	author = "Franc1sco franug, modified by [CNSR] FJH_03",
 	description = "",
-	version = "3.2",
+	version = "3.3",
 	url = "http://steamcommunity.com/id/franug"
 };
 
@@ -54,6 +55,11 @@ public OnPluginStart()
 	
 	HookEvent("player_spawn", EventPlayerSpawn);
 	HookEvent("weapon_fire", EventWeaponFire);
+	HookEvent("item_pickup", EventItemPickup);
+
+	for (new client = 1; client <= MaxClients; client++)
+		if (HasDefaultBotAmmo(client))
+			Client_ResetAmmo(client);
 }
 
 public Action:Lateload(Handle:timer)
@@ -82,29 +88,57 @@ public ZP_OnAwardBought( client, const String:awardbought[])
 public Action:EventPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client > 0)
+		g_AmmoInfi[client] = false;
+	if (HasDefaultBotAmmo(client))
+		Client_ResetAmmo(client);
+	return Plugin_Continue;
+}
+
+public void OnClientDisconnect(int client)
+{
 	g_AmmoInfi[client] = false;
+}
+
+bool HasDefaultBotAmmo(int client)
+{
+	return client > 0 && IsClientInGame(client) && IsPlayerAlive(client) &&
+		IsFakeClient(client) && ZR_IsClientHuman(client);
+}
+
+public Action EventItemPickup(Event event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (HasDefaultBotAmmo(client))
+		Client_ResetAmmo(client);
+	return Plugin_Continue;
 }
 
 public Action:EventWeaponFire(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	// Get all required event info.
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
-	if(!g_AmmoInfi[client]) return;
+	if (client <= 0 || !IsClientInGame(client) ||
+		(!g_AmmoInfi[client] && !HasDefaultBotAmmo(client)))
+		return Plugin_Continue;
 	
 	Client_ResetAmmo(client);
+	return Plugin_Continue;
 }
 
 public Client_ResetAmmo(client) {
 
-	new weaponIndex, dataIndex, ammoOffset;
-	new bool:restocked;
+	new ammoOffset = FindDataMapInfo(client, "m_iAmmo");
+	if (ammoOffset < 0)
+		return;
+
+	new weaponIndex, dataIndex;
 	decl String:sClassName[32];
 	for (new i = 0; i <= 1; i++) {
 		if (((weaponIndex = GetPlayerWeaponSlot(client, i)) != -1) && 
 		GetEdictClassname(weaponIndex, sClassName, 32) &&
-		((dataIndex = GetAmmoDataIndex(sClassName)) != -1) &&
-		((ammoOffset = FindDataMapOffs(client, "m_iAmmo")+(g_AmmoData[dataIndex][0]*4)) != -1)) {
-			SetEntData(client, ammoOffset, g_AmmoData[dataIndex][1]);
+		((dataIndex = GetAmmoDataIndex(sClassName)) != -1)) {
+			SetEntData(client, ammoOffset + g_AmmoData[dataIndex][0] * 4, g_AmmoData[dataIndex][1]);
 		}
 	}
 }
