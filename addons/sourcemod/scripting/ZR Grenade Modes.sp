@@ -15,7 +15,7 @@
 /* ========================================================================= */
 
 /* Plugin version															*/
-#define C_PLUGIN_VERSION				"1.4.6"
+#define C_PLUGIN_VERSION				"1.4.8"
 
 /* ------------------------------------------------------------------------- */
 
@@ -57,6 +57,9 @@ new Float:NULL_VELOCITY[3] = {0.0, 0.0, 0.0};
 #define C_GRENADE_MODE_TRIPWIRE		 (3)
 /* Maximum grenade mode													  */
 #define C_GRENADE_MODE_MAXIMUM		  (4)
+
+#define C_BOT_TRIPWIRE_WALL_RANGE 400.0
+#define C_BOT_TRIPWIRE_WALL_NORMAL_Z 0.866026
 
 /* Wait idle proximity state												 */
 #define C_PROXIMITY_STATE_WAIT_IDLE	 (0)
@@ -792,113 +795,81 @@ public void DeleteLight(Handle timer, int reference)
 public void OnGrenadeSpawnPost(int iGrenade)
 {
 	char szClassname[32];
-	int  iGrenadeType;
-	
-	// Get the grenade classname
+	int iGrenadeType;
 	GetEdictClassname(iGrenade, szClassname, sizeof(szClassname));
-	
-	// Get the grenade type
-	if (gl_hGrenadeProjectileName.GetValue(szClassname, iGrenadeType))
+	if (!gl_hGrenadeProjectileName.GetValue(szClassname, iGrenadeType))
 	{
-		// Get the grenade owner
-		int iOwner = GetEntPropEnt(iGrenade, Prop_Send, "m_hOwnerEntity");
-		
-		// Check if the owner is connected
-		if (1 <= iOwner <= MaxClients)
+		return;
+	}
+
+	int iOwner = GetEntPropEnt(iGrenade, Prop_Send, "m_hOwnerEntity");
+	if (iOwner < 1 || iOwner > MaxClients)
+	{
+		return;
+	}
+
+	int iMode = gl_iPlayerGrenadeMode[iOwner][iGrenadeType];
+	if (IsClientInGame(iOwner) && IsFakeClient(iOwner))
+	{
+		// NadeModes 11.2 (Nomexous & OT), nademodes.sma::grenade_process:
+		// choose a mode for each bot throw and place tripwires on nearby walls.
+		iMode = GetRandomInt(C_GRENADE_MODE_NORMAL, gl_iGrenadeModeLimits[iGrenadeType] - 1);
+		if (iMode == C_GRENADE_MODE_TRIPWIRE)
 		{
-			// Switch on the player grenade mode
-			switch (gl_iPlayerGrenadeMode[iOwner][iGrenadeType])
+			// CS:CZS finishes initializing the projectile after SpawnPost.
+			RequestFrame(PlaceBotTripwire, EntIndexToEntRef(iGrenade));
+			return;
+		}
+	}
+	ActivateGrenadeMode(iGrenade, iGrenadeType, iMode);
+}
+
+void GrenadeTrail(int iGrenade, int iGrenadeType)
+{
+	switch (iGrenadeType)
+	{
+		case C_GRENADE_TYPE_HE: BeamFollowCreate(iGrenade, FragColor);
+		case C_GRENADE_TYPE_FLASHBANG: BeamFollowCreate(iGrenade, FlashColor);
+		case C_GRENADE_TYPE_SMOKE: BeamFollowCreate(iGrenade, FreezeColor);
+	}
+}
+
+void ActivateGrenadeMode(int iGrenade, int iGrenadeType, int iMode)
+{
+	GrenadeTrail(iGrenade, iGrenadeType);
+	int iReference = EntIndexToEntRef(iGrenade);
+	switch (iMode)
+	{
+		case C_GRENADE_MODE_NORMAL:
+		{
+			if (iGrenadeType == C_GRENADE_TYPE_FLASHBANG)
 			{
-				case C_GRENADE_MODE_NORMAL:
-				{
-					if (!strcmp(szClassname, "hegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FragColor);
-					}
-					else if (!strcmp(szClassname, "flashbang_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FlashColor);
-						
-						CreateTimer(1.3, DoFlashLight, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
-					}
-					else if (!strcmp(szClassname, "smokegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FreezeColor);
-						
-						CreateTimer(1.3, CreateEvent_SmokeDetonate, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
-					}
-				}
-				case C_GRENADE_MODE_IMPACT:
-				{
-					if (!strcmp(szClassname, "hegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FragColor);
-					}
-					else if (!strcmp(szClassname, "flashbang_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FlashColor);
-					}
-					else if (!strcmp(szClassname, "smokegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FreezeColor);
-					}
-					
-					// Set the grenade as infinite
-					CreateTimer(0.1, OnGrenadeTimerSetInfinite, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
-					
-					// Hook the grenade touch function
-					SDKHook(iGrenade, SDKHook_TouchPost, OnGrenadeImpactTouchPost);
-				}
-				case C_GRENADE_MODE_PROXIMITY:
-				{
-					if (!strcmp(szClassname, "hegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FragColor);
-					}
-					else if (!strcmp(szClassname, "flashbang_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FlashColor);
-					}
-					else if (!strcmp(szClassname, "smokegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FreezeColor);
-					}
-					
-					DataPack hPack;
-					
-					// Set the grenade as infinite
-					CreateTimer(0.1, OnGrenadeTimerSetInfinite, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
-					
-					// Set the grenade think function
-					CreateDataTimer(0.1, OnGrenadeProximityTimerThink, hPack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-					
-					// Prepare the datapack
-					hPack.WriteCell(EntIndexToEntRef(iGrenade));
-					hPack.WriteCell(C_PROXIMITY_STATE_WAIT_IDLE);
-					hPack.WriteCell(0);
-				}
-				case C_GRENADE_MODE_TRIPWIRE:
-				{
-					if (!strcmp(szClassname, "hegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FragColor);
-					}
-					else if (!strcmp(szClassname, "flashbang_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FlashColor);
-					}
-					else if (!strcmp(szClassname, "smokegrenade_projectile"))
-					{
-						BeamFollowCreate(iGrenade, FreezeColor);
-					}
-					
-					// Set the grenade as infinite
-					CreateTimer(0.1, OnGrenadeTimerSetInfinite, EntIndexToEntRef(iGrenade), TIMER_FLAG_NO_MAPCHANGE);
-					
-					// Hook the grenade touch function
-					SDKHook(iGrenade, SDKHook_TouchPost, OnGrenadeTripwireTouchPost);
-				}
+				CreateTimer(1.3, DoFlashLight, iReference, TIMER_FLAG_NO_MAPCHANGE);
 			}
+			else if (iGrenadeType == C_GRENADE_TYPE_SMOKE)
+			{
+				CreateTimer(1.3, CreateEvent_SmokeDetonate, iReference, TIMER_FLAG_NO_MAPCHANGE);
+			}
+		}
+		case C_GRENADE_MODE_IMPACT:
+		{
+			CreateTimer(0.1, OnGrenadeTimerSetInfinite, iReference, TIMER_FLAG_NO_MAPCHANGE);
+			SDKHook(iGrenade, SDKHook_TouchPost, OnGrenadeImpactTouchPost);
+		}
+		case C_GRENADE_MODE_PROXIMITY:
+		{
+			CreateTimer(0.1, OnGrenadeTimerSetInfinite, iReference, TIMER_FLAG_NO_MAPCHANGE);
+
+			DataPack hPack;
+			CreateDataTimer(0.1, OnGrenadeProximityTimerThink, hPack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
+			hPack.WriteCell(iReference);
+			hPack.WriteCell(C_PROXIMITY_STATE_WAIT_IDLE);
+			hPack.WriteCell(0);
+		}
+		case C_GRENADE_MODE_TRIPWIRE:
+		{
+			CreateTimer(0.1, OnGrenadeTimerSetInfinite, iReference, TIMER_FLAG_NO_MAPCHANGE);
+			SDKHook(iGrenade, SDKHook_TouchPost, OnGrenadeTripwireTouchPost);
 		}
 	}
 }
@@ -1254,6 +1225,122 @@ public bool OnGrenadeTripwireTraceFilterNoPlayer(int iEntity, int iContentsMask,
 	return (iEntity == view_as<int>(iData) || 1 <= iEntity <= MaxClients) ? false : true;
 }
 
+bool ArmTripwire(int iGrenade, const float vNormal[3])
+{
+	DataPack hPack;
+	if (CreateDataTimer(0.1, OnGrenadeTripwireTimerThink, hPack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE) == null)
+	{
+		return false;
+	}
+	hPack.WriteCell(EntIndexToEntRef(iGrenade));
+	hPack.WriteFloat(vNormal[0]);
+	hPack.WriteFloat(vNormal[1]);
+	hPack.WriteFloat(vNormal[2]);
+	hPack.WriteCell(C_TRIPWIRE_STATE_POWERUP);
+	hPack.WriteCell(RoundFloat(gl_flCvarTripwirePowerupTime * 10.0));
+
+	SetEntityMoveType(iGrenade, MOVETYPE_NONE);
+	GrenadeSetBreakable(iGrenade);
+	return true;
+}
+
+bool FindBotTripwireMount(int iOwner, int iGrenade, float vMount[3], float vMountNormal[3])
+{
+	static const float directions[][] = {
+		{ 1.0, 0.0 }, { -1.0, 0.0 }, { 0.0, 1.0 }, { 0.0, -1.0 },
+		{ 0.7071068, 0.7071068 }, { 0.7071068, -0.7071068 },
+		{ -0.7071068, 0.7071068 }, { -0.7071068, -0.7071068 }
+	};
+	static const float vMins[3] = { -2.0, -2.0, -2.0 };
+	static const float vMaxs[3] = {  2.0,  2.0,  2.0 };
+	float vOrigin[3], vFeet[3];
+	GetClientEyePosition(iOwner, vOrigin);
+	GetClientAbsOrigin(iOwner, vFeet);
+	vOrigin[2] -= 8.0;
+	if (vOrigin[2] > vFeet[2] + 55.0)
+	{
+		vOrigin[2] = vFeet[2] + 55.0;
+	}
+
+	float bestFraction = 1.0;
+	for (int i = 0; i < sizeof(directions); i++)
+	{
+		float vEnd[3];
+		vEnd[0] = vOrigin[0] + directions[i][0] * C_BOT_TRIPWIRE_WALL_RANGE;
+		vEnd[1] = vOrigin[1] + directions[i][1] * C_BOT_TRIPWIRE_WALL_RANGE;
+		vEnd[2] = vOrigin[2];
+		Handle hTrace = TR_TraceRayFilterEx(vOrigin, vEnd, MASK_SOLID, RayType_EndPoint,
+			OnGrenadeTripwireTraceFilterNoPlayer, iGrenade);
+		float fraction = TR_GetFraction(hTrace);
+		int iWall = TR_GetEntityIndex(hTrace);
+		if (fraction >= bestFraction || TR_StartSolid(hTrace) || TR_AllSolid(hTrace)
+			|| (TR_GetSurfaceFlags(hTrace) & (SURF_SKY | SURF_SKY2D)) != 0
+			|| (iWall != 0 && (iWall <= MaxClients || !IsValidEntity(iWall)
+				|| GetEntityMoveType(iWall) != MOVETYPE_NONE)))
+		{
+			delete hTrace;
+			continue;
+		}
+
+		float vNormal[3];
+		TR_GetPlaneNormal(hTrace, vNormal);
+		TR_GetEndPosition(vEnd, hTrace);
+		delete hTrace;
+		if (FloatAbs(vNormal[2]) > C_BOT_TRIPWIRE_WALL_NORMAL_Z || GetVectorLength(vNormal, true) < 0.5)
+		{
+			continue;
+		}
+
+		for (int axis = 0; axis < 3; axis++)
+		{
+			vEnd[axis] += vNormal[axis] * 4.0;
+		}
+		hTrace = TR_TraceHullFilterEx(vEnd, vEnd, vMins, vMaxs, MASK_SOLID,
+			OnGrenadeTripwireTraceFilterNoPlayer, iGrenade);
+		bool clear = !TR_StartSolid(hTrace) && !TR_AllSolid(hTrace);
+		delete hTrace;
+		if (clear)
+		{
+			bestFraction = fraction;
+			vMount = vEnd;
+			vMountNormal = vNormal;
+		}
+	}
+	return bestFraction < 1.0;
+}
+
+public void PlaceBotTripwire(int iReference)
+{
+	int iGrenade = EntRefToEntIndex(iReference);
+	if (iGrenade == INVALID_ENT_REFERENCE || !gl_bCvarPluginEnable)
+	{
+		return;
+	}
+
+	char szClassname[32];
+	int iGrenadeType;
+	GetEdictClassname(iGrenade, szClassname, sizeof(szClassname));
+	if (!gl_hGrenadeProjectileName.GetValue(szClassname, iGrenadeType))
+	{
+		return;
+	}
+
+	int iOwner = GetEntPropEnt(iGrenade, Prop_Send, "m_hThrower");
+	float vMount[3], vNormal[3];
+	if (iOwner >= 1 && iOwner <= MaxClients && IsClientInGame(iOwner) && IsFakeClient(iOwner)
+		&& IsPlayerAlive(iOwner) && FindBotTripwireMount(iOwner, iGrenade, vMount, vNormal)
+		&& ArmTripwire(iGrenade, vNormal))
+	{
+		float vStop[3];
+		TeleportEntity(iGrenade, vMount, NULL_VECTOR, vStop);
+		GrenadeTrail(iGrenade, iGrenadeType);
+		CreateTimer(0.1, OnGrenadeTimerSetInfinite, iReference, TIMER_FLAG_NO_MAPCHANGE);
+		return;
+	}
+
+	ActivateGrenadeMode(iGrenade, iGrenadeType, GetRandomInt(C_GRENADE_MODE_NORMAL, C_GRENADE_MODE_TRIPWIRE - 1));
+}
+
 stock void GrenadeTripwireTrackWall(int iGrenade)
 {
 	float vTracker[6][3] = {{ 0.0,  0.0,  5.0},
@@ -1296,29 +1383,10 @@ stock void GrenadeTripwireTrackWall(int iGrenade)
 		CloseHandle(hTrace);
 	}
 	
-	// Check if the fraction is good
-	if (flBestFraction < 1.0)
+	// Keep the touch hook when there is no surface to mount the grenade on.
+	if (flBestFraction < 1.0 && ArmTripwire(iGrenade, vNormal))
 	{
-		DataPack hPack;
-		
-		// Set the grenade think function
-		CreateDataTimer(0.1, OnGrenadeTripwireTimerThink, hPack, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
-		
-		hPack.WriteCell(EntIndexToEntRef(iGrenade));
-		hPack.WriteFloat(vNormal[0]);
-		hPack.WriteFloat(vNormal[1]);
-		hPack.WriteFloat(vNormal[2]);
-		hPack.WriteCell(C_TRIPWIRE_STATE_POWERUP);
-		hPack.WriteCell(RoundFloat(gl_flCvarTripwirePowerupTime * 10.0));
-		
-		// Unhook the grenade touch function
 		SDKUnhook(iGrenade, SDKHook_TouchPost, OnGrenadeTripwireTouchPost);
-		
-		// Block the grenade
-		SetEntityMoveType(iGrenade, MOVETYPE_NONE);
-		
-		// Set the grenade breakable
-		GrenadeSetBreakable(iGrenade);
 	}
 }
 
