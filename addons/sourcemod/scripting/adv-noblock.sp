@@ -3,13 +3,13 @@
 #include <sourcemod>
 #include <sdktools>
 
-#define PLUGIN_VERSION "2.0.1"
+#define PLUGIN_VERSION "2.1.0"
 
 public Plugin:myinfo = 
 {
 	name = "Advance-Noblock",
 	author = "[CNSR] FJH_03",
-	description = "连点计分板取消指定玩家的碰撞体积，过段时间恢复",
+	description = "AgPB 加载时持续取消玩家碰撞，否则连点计分板临时取消指定玩家碰撞",
 	version = PLUGIN_VERSION,
 	url = "http://otstrel.ru"
 };
@@ -29,6 +29,8 @@ new Handle:sm_noblock_time;
 
 #define COLLISION_GROUP_DEBRIS_TRIGGER 2
 #define COLLISION_GROUP_PLAYER 5
+#define AGPB_PRESENCE_CONVAR "agpb_enable"
+#define ZR_ANTISTICK_CONVAR "zr_antistick"
 
 enum struct NoBlockRequest
 {
@@ -40,6 +42,13 @@ enum struct NoBlockRequest
 NoBlockRequest g_Request[MAXPLAYERS + 1];
 int g_TargetPasses[MAXPLAYERS + 1];
 int g_TargetCollisionGroup[MAXPLAYERS + 1];
+
+bool g_MapRunning;
+bool g_AgPBNoBlock;
+int g_AgPBClientSerial[MAXPLAYERS + 1];
+int g_AgPBPreviousGroup[MAXPLAYERS + 1];
+ConVar g_ZRAntiStick;
+bool g_RestoreZRAntiStick;
 
 #define cDefault 0x01
 #define cLightGreen 0x03
@@ -62,8 +71,10 @@ public OnPluginStart()
 	HookConVarChange(sm_noblock_hostages, OnConVarChange);
 	
 	sm_noblock_time = CreateConVar("sm_noblock_time", "2", "No blocking only for that time");
+	HookEvent("player_spawn", Event_PlayerSpawn);
 	HookEvent("player_death", Event_PlayerDeath);
 	HookEvent("round_end", Event_RoundEnd);
+	CreateTimer(0.2, Timer_AgPBNoBlock, _, TIMER_REPEAT);
 	
 	AutoExecConfig(true, "adv-noblock");
 	CvarsChanged();
@@ -72,6 +83,7 @@ public OnPluginStart()
 public OnConfigsExecuted()
 {
 	CvarsChanged();
+	RefreshAgPBNoBlock();
 }
 
 public OnConVarChange(Handle:hCvar, const String:oldValue[], const String:newValue[])
@@ -95,7 +107,7 @@ void CvarsChanged()
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-	if (IsClient(client, true)) {
+	if (!g_AgPBNoBlock && IsClient(client, true)) {
 		if(GetEntProp(client, Prop_Data, "m_afButtonPressed") & IN_SCORE) {
 			if (!IsFakeClient(client)) {
 				int Target = GetClientAimTarget(client, true);   // 获取准心目标实体
@@ -210,7 +222,17 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if (client > 0)
+	{
 		EndPlayerRequests(client);
+		RestoreAgPBClient(client);
+	}
+}
+
+public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+{
+	// Apply after the engine and ZR finish their spawn handlers.
+	if (g_AgPBNoBlock)
+		RequestFrame(RefreshAgPBClient, event.GetInt("userid"));
 }
 
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
@@ -221,16 +243,152 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 public void OnClientDisconnect(int client)
 {
 	EndPlayerRequests(client);
+	g_AgPBClientSerial[client] = 0;
+}
+
+public void OnMapStart()
+{
+	g_MapRunning = true;
+	RefreshAgPBNoBlock();
 }
 
 public void OnMapEnd()
 {
+	g_MapRunning = false;
 	EndAllRequests();
+	StopAgPBNoBlock();
+}
+
+public void OnPluginPauseChange(bool pause)
+{
+	if (pause)
+	{
+		EndAllRequests();
+		StopAgPBNoBlock();
+	}
+	else
+	{
+		char map[PLATFORM_MAX_PATH];
+		g_MapRunning = GetCurrentMap(map, sizeof(map)) > 0;
+		RefreshAgPBNoBlock();
+	}
 }
 
 public void OnPluginEnd()
 {
 	EndAllRequests();
+	StopAgPBNoBlock();
+}
+
+public Action Timer_AgPBNoBlock(Handle timer)
+{
+	RefreshAgPBNoBlock();
+	return Plugin_Continue;
+}
+
+void RefreshAgPBNoBlock()
+{
+	if (!g_MapRunning)
+		return;
+
+	// Metamod registers this ConVar with AgPB and removes it on unload.
+	// Its value represents bot control, so only its presence matters here.
+	if (FindConVar(AGPB_PRESENCE_CONVAR) == null)
+	{
+		StopAgPBNoBlock();
+		return;
+	}
+
+	if (!g_AgPBNoBlock)
+	{
+		EndAllRequests();
+		g_AgPBNoBlock = true;
+	}
+	HoldZRAntiStick();
+	for (int client = 1; client <= MaxClients; client++)
+		ApplyAgPBNoBlock(client);
+}
+
+public void RefreshAgPBClient(int userId)
+{
+	int client = GetClientOfUserId(userId);
+	if (g_AgPBNoBlock && client > 0)
+		ApplyAgPBNoBlock(client);
+}
+
+void ApplyAgPBNoBlock(int client)
+{
+	if (!IsClient(client, true) || IsClientObserver(client))
+	{
+		RestoreAgPBClient(client);
+		return;
+	}
+
+	int group = GetEntProp(client, Prop_Send, "m_CollisionGroup");
+	// Already nonblocking, possibly due to a ZR antistick timer in flight.
+	if (group == COLLISION_GROUP_DEBRIS_TRIGGER)
+		return;
+
+	g_AgPBClientSerial[client] = GetClientSerial(client);
+	g_AgPBPreviousGroup[client] = group;
+	SetAgPBClientCollisionGroup(client, COLLISION_GROUP_DEBRIS_TRIGGER);
+}
+
+void RestoreAgPBClient(int client)
+{
+	int serial = g_AgPBClientSerial[client];
+	g_AgPBClientSerial[client] = 0;
+	if (serial != 0 && GetClientFromSerial(serial) == client && IsClientInGame(client)
+		&& GetEntProp(client, Prop_Send, "m_CollisionGroup") == COLLISION_GROUP_DEBRIS_TRIGGER)
+	{
+		SetAgPBClientCollisionGroup(client, g_AgPBPreviousGroup[client]);
+	}
+}
+
+void SetAgPBClientCollisionGroup(int client, int group)
+{
+	SetEntProp(client, Prop_Send, "m_CollisionGroup", group);
+	EntityCollisionRulesChanged(client);
+}
+
+void HoldZRAntiStick()
+{
+	if (g_ZRAntiStick != null)
+		return;
+
+	g_ZRAntiStick = FindConVar(ZR_ANTISTICK_CONVAR);
+	if (g_ZRAntiStick != null)
+	{
+		g_RestoreZRAntiStick = g_ZRAntiStick.BoolValue;
+		g_ZRAntiStick.BoolValue = false;
+		g_ZRAntiStick.AddChangeHook(OnZRAntiStickChanged);
+	}
+}
+
+public void OnZRAntiStickChanged(ConVar antiStick, const char[] oldValue, const char[] newValue)
+{
+	if (antiStick.BoolValue)
+	{
+		g_RestoreZRAntiStick = true;
+		antiStick.BoolValue = false;
+	}
+}
+
+void StopAgPBNoBlock()
+{
+	if (!g_AgPBNoBlock)
+		return;
+
+	g_AgPBNoBlock = false;
+	for (int client = 1; client <= MaxClients; client++)
+		RestoreAgPBClient(client);
+
+	if (g_ZRAntiStick != null)
+	{
+		g_ZRAntiStick.RemoveChangeHook(OnZRAntiStickChanged);
+		g_ZRAntiStick.BoolValue = g_RestoreZRAntiStick;
+		g_ZRAntiStick = null;
+	}
 }
 
 UnblockHostages() {
