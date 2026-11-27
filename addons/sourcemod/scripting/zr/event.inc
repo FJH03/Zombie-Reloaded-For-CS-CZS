@@ -102,6 +102,7 @@ EventHook(bool:unhook = false)
 public Action:EventRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
     // Forward event to sub-modules.
+    EscapeOnRoundStart();
     OverlaysOnRoundStart();
     RoundStartOnRoundStart();
     RoundEndOnRoundStart();
@@ -153,6 +154,7 @@ public Action:EventRoundFreezeEnd(Handle:event, const String:name[], bool:dontBr
  */
 public Action:EventRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
+    EscapeOnRoundEnd();
     EventCancelRoundClientTimers();
 
     // Get all required event info.

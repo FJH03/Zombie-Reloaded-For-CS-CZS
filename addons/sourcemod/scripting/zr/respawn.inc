@@ -94,7 +94,7 @@ RespawnOnClientDeath(client, attacker, const String:weapon[])
     
     // If respawn is disabled, stop here.
     new bool:respawn = GetConVarBool(g_hCvarsList[CVAR_RESPAWN]);
-    if (!respawn)
+    if (!respawn || EscapeRespawnsBlocked())
     {
         return;
     }
@@ -127,7 +127,7 @@ RespawnCancelAllTimers()
 bool:RespawnSpawnClient(client, bool:zombie = false, bool:zombieIfSuicide = false)
 {
     // If client isn't in-game, then stop.
-    if (!IsClientInGame(client))
+    if (!IsClientInGame(client) || EscapeRespawnsBlocked())
     {
         return false;
     }
@@ -139,7 +139,7 @@ bool:RespawnSpawnClient(client, bool:zombie = false, bool:zombieIfSuicide = fals
     new Action:result = APIOnClientRespawn(client, condition);
     
     // Check if respawn should be stopped.
-    if (result == Plugin_Handled)
+    if (result == Plugin_Handled || EscapeRespawnsBlocked())
     {
         return false;
     }

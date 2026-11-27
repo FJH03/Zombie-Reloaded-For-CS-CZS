@@ -89,6 +89,7 @@
 #include "zr/models"
 #include "zr/weapons/weapons"
 #include "zr/hitgroups"
+#include "zr/escape"
 #include "zr/roundstart"
 #include "zr/roundend"
 #include "zr/infect"
@@ -118,6 +119,8 @@
 
 #include "zr/api/api"
 
+new bool:g_bLateLoad;
+
 /**
  * Record plugin info.
  */
@@ -143,7 +146,9 @@ public Plugin:myinfo =
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
     // Load API.
+    g_bLateLoad = late;
     APIInit();
+    RegPluginLibrary("zombiereloaded");
     
     // Let plugin load.
     return APLRes_Success;
@@ -159,6 +164,7 @@ public OnPluginStart()
     // Forward event to modules.
     LogInit();          // Doesn't depend on CVARs.
     TranslationInit();
+    EscapeInit();
     CvarsInit();
     ToolsInit();
     CookiesInit();
@@ -200,12 +206,18 @@ public OnLibraryRemoved(const String:name[])
 public OnMapStart()
 {
     // Forward event to modules.
+    EscapeOnMapStart(g_bLateLoad);
     ClassOnMapStart();
     OverlaysOnMapStart();
     RoundEndOnMapStart();
     SEffectsOnMapStart();
     ZSpawnOnMapStart();
     VolInit();
+}
+
+public OnGameFrame()
+{
+    EscapeOnGameFrame();
 }
 
 /**
@@ -232,8 +244,9 @@ public OnMapEnd()
  */
 public OnAutoConfigsBuffered()
 {
-	// Load map configurations.
+    // Load map configurations after the main configuration.
     ConfigLoad();
+    g_bLateLoad = false;
 }
 
 /**
@@ -241,6 +254,13 @@ public OnAutoConfigsBuffered()
  */
 public OnConfigsExecuted()
 {
+    // SourceMod skips OnAutoConfigsBuffered for single-plugin reloads.
+    if (g_bLateLoad)
+    {
+        ConfigLoad();
+        g_bLateLoad = false;
+    }
+
     // Forward event to modules. (OnConfigsExecuted)
     ModelsLoad();
     DownloadsLoad();

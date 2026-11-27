@@ -247,8 +247,12 @@ public Action:RoundEndTimer(Handle:timer)
         return;
     }
     
-    // Terminate the round with humans as the winner.
-    RoundEndTerminateRound(ROUNDEND_DELAY, HumansWin);
+    switch (EscapeGetTimeoutOutcome())
+    {
+        case EscapeTimeout_Draw: RoundEndTerminateRound(ROUNDEND_DELAY, Draw);
+        case EscapeTimeout_Zombies: RoundEndTerminateRound(ROUNDEND_DELAY, ZombiesWin);
+        default: RoundEndTerminateRound(ROUNDEND_DELAY, HumansWin);
+    }
 }
 
 /**

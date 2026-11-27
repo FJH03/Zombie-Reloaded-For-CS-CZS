@@ -34,3 +34,8 @@
 #include <zr/infect.zr>
 #include <zr/respawn.zr>
 #include <zr/class.zr>
+
+/**
+ * Returns true when Zombie:Reloaded applies the Zombie Escape map profile.
+ */
+native bool:ZR_IsEscapeMode();

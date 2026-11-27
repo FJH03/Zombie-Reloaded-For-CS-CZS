@@ -50,6 +50,8 @@
  */
 APIInit()
 {
+    CreateNative("ZR_IsEscapeMode", APIIsEscapeMode);
+
     // Forward event to sub-modules.
     APIInfectInit();
     APIRespawnInit();
